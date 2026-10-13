@@ -1,5 +1,5 @@
 .git
-node_modules
+target
 data
 .env
-*.zip
+tests

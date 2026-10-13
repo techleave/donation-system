@@ -1,48 +1,50 @@
-# donate system demo — Railway edition
+# donate system demo
 
-This package is an independent Railway adaptation of the existing donor rewards website. It retains the donor/admin layouts, bilingual text, covers, profiles, CSV import, private photos, request forms, administrator point additions, dated point history and 1,000-point tree redemption.
+Full donor rewards system with a **Java 17 backend**, a bilingual donor/admin website, HTTP APIs, authenticated sessions, a SQLite database, and persistent image storage. Source is maintained in `techleave/donation-system`; the JVM, database and uploaded images run on Railway.
 
-## Runtime
+## Architecture
 
-- Node.js 24, no npm dependencies or framework build required.
-- SQLite database and uploaded images live in `DATA_DIR` on a persistent Railway volume.
-- Email/password login, hashed passwords, HttpOnly sessions, server-side administrator and donor permissions.
-- An administrator creates/resets each donor's login from Donors Management. The generated password is shown once; no email is sent automatically.
-- Change Password / email PIN remains a visual demonstration, matching the previous scope. This is not an email verification or automated password recovery service.
+- `src/main/java/org/hkvc/donate/Application.java`: HTTP controllers, donor profiles, CMS, rewards, CSV import, images and submission history.
+- `Auth.java`: server-side admin/donor roles, scrypt password hashes, login rate limit and revocable sessions.
+- `Store.java`: JDBC database, migrations, transactions and atomic uploaded-file writes.
+- `Validation.java`: donor, reward, CMS and CSV input validation.
+- `lib/portal.html` and `lib/admin.html`: browser views served by the Java application. HTML/JavaScript are the website interface, not the database or backend.
+- `public/`: campaign images and logos.
 
-## Deploy to Railway
+The app **does not run Node.js**. Maven creates a single executable Java JAR, including the views and static assets. Docker builds and starts that JAR.
 
-1. Put the contents of this directory at the root of a GitHub repository.
-2. Connect that repository to the `donate-system-demo` service in the already-created `donate system demo` Railway project.
-3. Use the supplied Dockerfile and railway.json. Run one replica only.
-4. Mount a persistent Railway volume at `/data`. Never use temporary container storage for production records.
-5. Set `DATA_DIR=/data`, `NODE_ENV=production`, `PORT=8080`, `ADMIN_EMAIL`, and a unique `INITIAL_ADMIN_PASSWORD` of at least 12 characters. Do not commit real secrets.
-6. Generate a domain and set `PUBLIC_URL` to its complete HTTPS origin (no trailing path).
-7. Confirm `/health` returns status ok, then sign in at `/admin` using the configured administrator email/password.
+## Railway deployment
 
-`INITIAL_ADMIN_PASSWORD` is only used when there is no administrator account in the database. It does not reset an existing administrator's password on redeploy. Keep the configured administrator email stable. A previously provisioned donor logs in with the current donor-profile email; editing that email changes their login name as well.
+Project: `donate system demo` (`c752a01e-f99a-47f8-a101-5a616f000ef7`). Service: `donate-system-demo` (`18406847-ad2d-425e-9378-ab71e3d77384`). Production environment: `41dd874a-d00e-4bb4-8cdc-c11eff1390a7`.
 
-## Local verification
+GitHub source: `techleave/donation-system`, branch `main`. Start command: `java -XX:MaxRAMPercentage=70 -jar /app/donation-system.jar`. Healthcheck: `/health`.
 
-Use a temporary directory and disposable credentials:
+Mount the persistent Railway volume at `/data`, set `DATA_DIR=/data`, and keep **one replica**. The database is `/data/donate.sqlite`, and uploaded images are `/data/objects`. Data survives restarts and code redeployments. This is a volume-backed SQLite database, not a separate PostgreSQL service. Do not remove the volume or database to update the website.
 
-```
-DATA_DIR=./data ADMIN_EMAIL=admin@example.com INITIAL_ADMIN_PASSWORD=your-unique-test-password node server.ts
-node --test tests/*.test.ts
-```
+Required environment variables:
 
-Tests use an isolated temporary database and cover authentication, spoofed identity rejection, administrator/donor separation, profile-backed submissions, point addition idempotency, tree debit idempotency, insufficient balance, CSV preview/import, photo privacy, transaction rollback and persisted data.
+| Variable | Meaning |
+| --- | --- |
+| `PORT` | HTTP listening port, normally `8080` |
+| `DATA_DIR` | Persistent data directory, `/data` on Railway |
+| `PUBLIC_URL` | Exact public HTTPS origin, used for origin checks and secure cookies |
+| `ADMIN_EMAIL` | Administrator email |
+| `INITIAL_ADMIN_PASSWORD` | Strong initial password, at least 12 characters; used only if there is no existing admin |
 
-## Existing website data
+Secrets belong in Railway variables; never commit `.env`, passwords or database files. Existing Railway SQLite tables, uploaded images, session tokens and scrypt passwords from the previous Node version are reused. Migrations are applied once; upgrading does not reset accounts or data.
 
-This package contains application code, default content, static logos and artwork. It does **not** contain the original hosted D1 donor records, requests, point history, uploaded covers/photos, or saved admin draft/published settings. Those are still on the existing site. Do not describe this package as a complete live-data migration or switch the original link until those records have been exported and imported separately. Keep the original site online while completing the migration. Accounts use new Railway passwords; ChatGPT login and sessions cannot be transferred.
+## Features
 
-Existing SQL migrations are applied once on startup and tracked in `runtime_migrations`. Applied migration files must not be edited.
+- Donor sign-in, own profile, points ledger, four reward cards and persistent submission history. Users can see only their own profile, photos, points and requests.
+- Admin interface, all donor/request management, CSV preview/import, PNG/JPG donor photos, dated point credits, cover images and editable/publishable bilingual website configuration.
+- One tree costs 1,000 points. Atomic transactions and operation identifiers prevent double credits/debits on retries.
+- Revision checks protect concurrent profile/CMS edits. Input validation, prepared SQL, same-origin write checks, HttpOnly cookies and session revocation protect data access.
+- An admin can create/reset a donor login from the donor profile; the temporary password is displayed once. Email delivery and the existing password/PIN screen remain unimplemented, as requested for the earlier UI preview.
 
-## Resource identity
+The original ChatGPT-hosted site's donors, uploaded images, requests and saved CMS edits have **not** been exported into Railway. Only data created on this Railway system is available here. Import donor CSVs through Donors Management, and provision each donor's login there.
 
-Railway project: c752a01e-f99a-47f8-a101-5a616f000ef7
-Environment: 41dd874a-d00e-4bb4-8cdc-c11eff1390a7
-Source snapshot: aeaf343cfbd1fb570638d05482dcd53c67bbc9e6
+## Local development and verification
 
-The original Sites deployment and source have not been modified by this adaptation.
+Install JDK 17+ and Maven 3.9+. Run `mvn -B package`, configure environment variables (see `.env.example`), then run `java -jar target/donation-system.jar`.
+
+Run `python3 tests/integration.py` after building. The test starts a real JVM with an isolated temporary database, verifies compatibility with the previous Node database/password format, checks permissions, CSV, photos/covers, CMS publishing, retry/concurrency protection, request history, account reset and persistence across a JVM restart. It does not access production data.

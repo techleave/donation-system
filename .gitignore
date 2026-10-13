@@ -1,5 +1,6 @@
-data/
+/target/
+/data/
 .env
 .env.*
 !.env.example
-node_modules/
+__pycache__/
