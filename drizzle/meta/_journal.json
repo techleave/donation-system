@@ -1,0 +1,27 @@
+{
+  "version": "7",
+  "dialect": "sqlite",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "6",
+      "when": 1791710731005,
+      "tag": "0000_dear_kronos",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1791731285135,
+      "tag": "0001_eminent_veda",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1791732522134,
+      "tag": "0002_unique_wendell_rand",
+      "breakpoints": true
+    }
+  ]
+}

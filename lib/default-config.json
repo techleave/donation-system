@@ -1,0 +1,412 @@
+{
+  "copy": {
+    "zh": {
+      "tag": "捐款者專屬 · 兌換中心",
+      "demo": "流程示範",
+      "home": "兌換首頁",
+      "tree": "紀念樹",
+      "airport": "機場",
+      "card": "手工卡片",
+      "ticket": "門票",
+      "history": "提交記錄",
+      "admin": "管理員示範",
+      "side": "目前不會扣除真實積分",
+      "hello": "您好，捐款者。",
+      "question": "今日想點樣使用您的捐款積分？",
+      "points": "示範積分",
+      "choose": "揀選兌換項目",
+      "treeShort": "填寫展示名同葉片數量",
+      "airportShort": "積分兌換展示項目，1,000 分起",
+      "cardShort": "揀顏色及是否定制",
+      "ticketShort": "用積分換門票或門票折扣",
+      "hint": "提交後可喺「提交記錄」查看時間同內容。",
+      "back": "返回兌換首頁",
+      "treeDesc": "揀選葉片數量，填寫希望展示喺葉片上嘅名字或祝福語。",
+      "display": "展示名／祝福語",
+      "displayPlace": "最多 9 個字",
+      "displayHint": "每片葉子使用同一展示文字；正式規則可按捐款級別調整。",
+      "leaves": "葉片數量",
+      "leaf": "片",
+      "selected": "已揀選",
+      "submit": "提交申請",
+      "airportDesc": "揀選可兌換項目，1,000 分起；展示內容由管理員上架。",
+      "chooseItem": "揀選",
+      "pickFirst": "請先揀選一個項目。",
+      "redeem": "提交兌換申請",
+      "demoOnly": "示範版只記錄畫面，唔會扣除真實積分。",
+      "ticketDesc": "揀選以積分換門票，或換購票折扣。",
+      "tickets": "換門票",
+      "discount": "換折扣",
+      "cardDesc": "揀好顏色同定制方式後提交，系統會自動記錄提交時間。",
+      "color": "卡片顏色",
+      "custom": "是否定制",
+      "yes": "是",
+      "no": "否",
+      "customText": "定制文字",
+      "customPlace": "請輸入希望寫喺卡片上嘅內容",
+      "standard": "標準卡片",
+      "customized": "定制",
+      "timeHint": "提交時間會自動記錄，毋須自行填寫。",
+      "needText": "請填寫定制文字",
+      "historyDesc": "查看今次瀏覽期間提交的申請。",
+      "recorded": "申請已記錄",
+      "submitted": "提交",
+      "pending": "待審核",
+      "empty": "暫時未有提交申請",
+      "sessionOnly": "申請已儲存，管理員可在後台查看。",
+      "adminDesc": "設定機場可兌換內容同所需積分。正式版需要獨立管理員權限。",
+      "adminNote": "示範操作：新增項目只會喺目前開啟嘅頁面顯示，唔會對其他人公開。",
+      "itemName": "項目名稱",
+      "itemPlace": "例如：機場展示名額",
+      "description": "內容說明",
+      "descPlace": "描述展示位置、期限或兌換安排",
+      "cost": "所需積分",
+      "min": "機場項目最低 1,000 分",
+      "list": "目前項目",
+      "add": "上架示範項目",
+      "none": "暫時未有上架項目",
+      "deep": "深綠",
+      "ivory": "米白",
+      "wine": "酒紅",
+      "blue": "海藍",
+      "submissions": "客戶申請",
+      "submissionsDesc": "以表單列表查看每一筆申請及客戶填寫欄位。",
+      "totalRequests": "申請總數",
+      "requestNo": "編號",
+      "category": "類別",
+      "details": "填寫資料",
+      "status": "狀態",
+      "viewDetails": "查看完整資料",
+      "displayName": "展示名／祝福語",
+      "personalised": "定制",
+      "message": "卡片文字",
+      "item": "兌換項目",
+      "loginEyebrow": "您的心意，繼續發光",
+      "loginHeadline": "種下合唱的種子，\n讓心意繼續成長。",
+      "loginLead": "登入後揀選專屬禮遇，延續您對藝術同社區嘅支持。",
+      "loginFooter": "Plant a Choral Seed · HKICF",
+      "loginTitle": "捐款者登入",
+      "loginPrompt": "輸入示範帳戶，預覽積分兌換流程。",
+      "demoWarning": "目前只係流程示範，請勿輸入您真正嘅帳戶密碼。",
+      "email": "電郵地址",
+      "password": "密碼",
+      "loginButton": "登入示範頁",
+      "demoAccount": "示範帳戶",
+      "loginError": "示範帳戶或密碼不正確。",
+      "signOut": "登出",
+      "ap1": "機場展區支持名額",
+      "ap1d": "指定機場展區展示支持者名字；詳情由管理員確認。",
+      "ap2": "機場展示計劃",
+      "ap2d": "展示期同位置以最終安排為準。",
+      "tk1": "音樂會門票 1 張",
+      "tk1d": "場次同座位由管理員安排。",
+      "tk2": "門票折扣券",
+      "tk2d": "兌換後由團隊提供適用場次同折扣詳情。",
+      "brandSubtitle": "DONOR REWARDS",
+      "adminEntry": "管理員後台",
+      "customerName": "姓名",
+      "customerEmail": "聯絡電郵",
+      "submissionNote": "目前為流程試用，申請會儲存至管理員後台；真實積分不會扣除。"
+    },
+    "en": {
+      "tag": "DONOR REWARDS · REDEMPTION",
+      "demo": "DEMO",
+      "home": "Rewards home",
+      "tree": "Recognition Tree",
+      "airport": "Airport",
+      "card": "Handmade Card",
+      "ticket": "Tickets",
+      "history": "Requests",
+      "admin": "Admin demo",
+      "side": "No real points will be deducted",
+      "hello": "Welcome",
+      "question": "How would you like to use your donation points today?",
+      "points": "demo points",
+      "choose": "Choose a reward",
+      "treeShort": "Choose your display name and number of leaves",
+      "airportShort": "Redeem airport display items from 1,000 points",
+      "cardShort": "Choose a colour and personalisation",
+      "ticketShort": "Redeem tickets or ticket discounts",
+      "hint": "View the details and submission time under Requests.",
+      "back": "Back to rewards",
+      "treeDesc": "Choose the number of leaves and the name or message to display.",
+      "display": "Display name / message",
+      "displayPlace": "Up to 9 characters",
+      "displayHint": "The same text appears on each leaf. Final eligibility may depend on donation tier.",
+      "leaves": "Number of leaves",
+      "leaf": "leaves",
+      "selected": "Selected",
+      "submit": "Submit request",
+      "airportDesc": "Choose an available item from 1,000 points. Administrators can add display options.",
+      "chooseItem": "Select",
+      "pickFirst": "Select an item to continue.",
+      "redeem": "Submit redemption request",
+      "demoOnly": "This demo records your request on screen and does not deduct real points.",
+      "ticketDesc": "Use points for a ticket or a ticket discount.",
+      "tickets": "Tickets",
+      "discount": "Discounts",
+      "cardDesc": "Choose a colour and personalisation. Your submission time is recorded automatically.",
+      "color": "Card colour",
+      "custom": "Personalise this card?",
+      "yes": "Yes",
+      "no": "No",
+      "customText": "Your message",
+      "customPlace": "Enter the message for the card",
+      "standard": "Standard card",
+      "customized": "Personalised",
+      "timeHint": "Submission time is recorded automatically.",
+      "needText": "Please enter your personalised message.",
+      "historyDesc": "View requests submitted during this visit.",
+      "recorded": "Request recorded",
+      "submitted": "Submitted",
+      "pending": "Pending review",
+      "empty": "No requests yet",
+      "sessionOnly": "Requests are saved and available to the administrator.",
+      "adminDesc": "Set airport display items and their point costs. The live service requires separate admin access.",
+      "adminNote": "Demo only: new items appear on this open page and are not published to others.",
+      "itemName": "Item name",
+      "itemPlace": "e.g. Airport display placement",
+      "description": "Description",
+      "descPlace": "Describe the location, duration or arrangements",
+      "cost": "Points required",
+      "min": "Airport items start at 1,000 points",
+      "list": "Current items",
+      "add": "Add demo item",
+      "none": "No items available",
+      "deep": "Forest green",
+      "ivory": "Ivory",
+      "wine": "Burgundy",
+      "blue": "Ocean blue",
+      "submissions": "Customer requests",
+      "submissionsDesc": "Review each request and all submitted fields in a form-style list.",
+      "totalRequests": "Total requests",
+      "requestNo": "No.",
+      "category": "Category",
+      "details": "Submitted fields",
+      "status": "Status",
+      "viewDetails": "View all fields",
+      "displayName": "Display name / message",
+      "personalised": "Personalised",
+      "message": "Card message",
+      "item": "Reward item",
+      "loginEyebrow": "YOUR GENEROSITY IN MOTION",
+      "loginHeadline": "PLANT A\nCHORAL SEED.",
+      "loginLead": "Sign in to explore rewards that extend your support for the arts and the community.",
+      "loginFooter": "Plant a Choral Seed · HKICF",
+      "loginTitle": "Donor sign in",
+      "loginPrompt": "Use the demo account to preview the redemption journey.",
+      "demoWarning": "This is a process demo. Please do not enter a real account password.",
+      "email": "Email address",
+      "password": "Password",
+      "loginButton": "Enter demo",
+      "demoAccount": "Demo account",
+      "loginError": "Incorrect demo email or password.",
+      "signOut": "Sign out",
+      "ap1": "Airport display supporter placement",
+      "ap1d": "Display a supporter name in a designated airport area; details are confirmed by the team.",
+      "ap2": "Airport display programme",
+      "ap2d": "Display period and location are subject to final arrangements.",
+      "tk1": "Concert ticket × 1",
+      "tk1d": "Performance and seating are arranged by the team.",
+      "tk2": "Ticket discount voucher",
+      "tk2d": "Eligible performances and discount details are provided after redemption.",
+      "brandSubtitle": "DONOR REWARDS",
+      "adminEntry": "Administrator portal",
+      "customerName": "Name",
+      "customerEmail": "Contact email",
+      "submissionNote": "This is a trial. Requests are saved for the administrator; real points are not deducted."
+    }
+  },
+  "theme": {
+    "primary": "#366538",
+    "background": "#e2d9b9",
+    "surface": "#faf7e8",
+    "accent": "#fade4b",
+    "logo": "/assets/hkvc-logo.svg",
+    "art": "/assets/signin-seed-art-v2.png",
+    "brand": "Plant a Choral Seed",
+    "radius": 13,
+    "font": "sans",
+    "navigation": "sidebar",
+    "width": 1300,
+    "logoSecondary": "/assets/hkicf-logo.svg",
+    "brandRevision": 20261012,
+    "artRevision": 20261012
+  },
+  "categories": [
+    {
+      "id": "tree",
+      "enabled": true,
+      "order": 0,
+      "icon": "♧",
+      "cover": ""
+    },
+    {
+      "id": "airport",
+      "enabled": true,
+      "order": 1,
+      "icon": "✧",
+      "cover": ""
+    },
+    {
+      "id": "card",
+      "enabled": true,
+      "order": 2,
+      "icon": "✉",
+      "cover": ""
+    },
+    {
+      "id": "ticket",
+      "enabled": true,
+      "order": 3,
+      "icon": "♫",
+      "cover": ""
+    }
+  ],
+  "fields": {
+    "tree": [
+      {
+        "key": "displayName",
+        "label": {
+          "zh": "展示名／祝福語",
+          "en": "Display name / message"
+        },
+        "type": "text",
+        "required": true,
+        "maxLength": 9
+      },
+      {
+        "key": "leaves",
+        "label": {
+          "zh": "葉片數量",
+          "en": "Number of leaves"
+        },
+        "type": "number",
+        "required": true,
+        "min": 1,
+        "max": 4
+      }
+    ],
+    "airport": [],
+    "card": [
+      {
+        "key": "color",
+        "label": {
+          "zh": "卡片顏色",
+          "en": "Card colour"
+        },
+        "type": "select",
+        "required": true,
+        "options": [
+          {
+            "zh": "深綠",
+            "en": "Forest green"
+          },
+          {
+            "zh": "米白",
+            "en": "Ivory"
+          },
+          {
+            "zh": "酒紅",
+            "en": "Burgundy"
+          },
+          {
+            "zh": "海藍",
+            "en": "Ocean blue"
+          }
+        ]
+      },
+      {
+        "key": "personalised",
+        "label": {
+          "zh": "是否定制",
+          "en": "Personalise this card?"
+        },
+        "type": "select",
+        "required": true,
+        "options": [
+          {
+            "zh": "否",
+            "en": "No"
+          },
+          {
+            "zh": "是",
+            "en": "Yes"
+          }
+        ]
+      },
+      {
+        "key": "message",
+        "label": {
+          "zh": "定制文字",
+          "en": "Personalised message"
+        },
+        "type": "textarea",
+        "required": false,
+        "maxLength": 120
+      }
+    ],
+    "ticket": []
+  },
+  "items": [
+    {
+      "id": "airport-1",
+      "category": "airport",
+      "title": {
+        "zh": "機場展區支持名額",
+        "en": "Airport display supporter placement"
+      },
+      "description": {
+        "zh": "指定機場展區展示支持者名字；詳情由管理員確認。",
+        "en": "Display a supporter name in a designated airport area; details are confirmed by the team."
+      },
+      "points": 1000,
+      "enabled": true
+    },
+    {
+      "id": "airport-2",
+      "category": "airport",
+      "title": {
+        "zh": "機場展示計劃",
+        "en": "Airport display programme"
+      },
+      "description": {
+        "zh": "展示期同位置以最終安排為準。",
+        "en": "Display period and location are subject to final arrangements."
+      },
+      "points": 2000,
+      "enabled": true
+    },
+    {
+      "id": "ticket-1",
+      "category": "ticket",
+      "mode": "tickets",
+      "title": {
+        "zh": "音樂會門票 1 張",
+        "en": "Concert ticket × 1"
+      },
+      "description": {
+        "zh": "場次同座位由管理員安排。",
+        "en": "Performance and seating are arranged by the team."
+      },
+      "points": 1500,
+      "enabled": true
+    },
+    {
+      "id": "ticket-2",
+      "category": "ticket",
+      "mode": "discount",
+      "title": {
+        "zh": "門票折扣券",
+        "en": "Ticket discount voucher"
+      },
+      "description": {
+        "zh": "兌換後由團隊提供適用場次同折扣詳情。",
+        "en": "Eligible performances and discount details are provided after redemption."
+      },
+      "points": 500,
+      "enabled": true
+    }
+  ],
+  "demoPoints": 3200
+}
