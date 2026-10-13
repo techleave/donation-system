@@ -41,7 +41,7 @@ Secrets belong in Railway variables; never commit `.env`, passwords or database 
 - Revision checks protect concurrent profile/CMS edits. Input validation, prepared SQL, same-origin write checks, HttpOnly cookies and session revocation protect data access.
 - An admin can create/reset a donor login from the donor profile; the temporary password is displayed once. Email delivery and the existing password/PIN screen remain unimplemented, as requested for the earlier UI preview.
 
-The original ChatGPT-hosted site's donors, uploaded images, requests and saved CMS edits have **not** been exported into Railway. Only data created on this Railway system is available here. Import donor CSVs through Donors Management, and provision each donor's login there.
+The administrator-only `/api/admin/import-site-data` endpoint imports the original Sites donor profiles, point ledger and requests with original identifiers, timestamps and balances. It checks for conflicts, backs up the Railway database, imports in one transaction and records an idempotency receipt. A repeated identical snapshot is a no-op; a changed snapshot is rejected for review. Runtime data and backups stay on Railway and are never committed to GitHub. ChatGPT user identities cannot become independent email/password credentials: provision donor logins through Donors Management. The current published original-site configuration matches the bundled website configuration.
 
 ## Local development and verification
 

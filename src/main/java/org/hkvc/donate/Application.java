@@ -54,6 +54,7 @@ public final class Application {
         if(path.equals("/api/auth/login")&&method.equals("POST")){json(e,200,auth.login(e,bodyJson(e)));return;}
         if(path.equals("/api/auth/me")&&method.equals("GET")){json(e,200,map("user",user));return;}
         if(path.equals("/api/accounts")&&method.equals("POST")){admin(e,user,true);json(e,200,auth.provision(bodyJson(e)));return;}
+        if(path.equals("/api/admin/import-site-data")&&method.equals("POST")){admin(e,user,true);json(e,200,new Migration(store).importData(bodyJson(e)));return;}
         if(path.equals("/signout")){auth.logout(e);redirect(e,303,"/");return;}
         if(path.equals("/")||path.equals("/signin")||path.equals("/admin")||path.equals("/admin/editor")){
             if(!method.equals("GET"))throw new Failure(405,"Method not allowed");

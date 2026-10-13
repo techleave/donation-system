@@ -172,6 +172,33 @@ class SystemTests(unittest.TestCase):
         # Fulfilment records are retained after profile deletion, as in the original.
         self.assertEqual(len(self.call(admin, "/api/requests")[1]["requests"]), 2)
 
+    def test_03_original_site_import(self):
+        admin = self.client()
+        self.call(admin, "/api/auth/login", "POST", {"email": "admin@example.com", "password": PASSWORD})
+        donor_id, entry_id = str(uuid.uuid4()), str(uuid.uuid4())
+        donor = dict(id=donor_id, prefix="Ms", english_name="Imported Donor", chinese_name="測試", phone="1234", email="imported@example.com", photo_key=None, user_id="old-chatgpt-user-id", revision=2, created_at="2026-10-11T12:00:00Z", updated_at="2026-10-11T13:00:00Z", points=2500)
+        entry = dict(id=entry_id, donor_id=donor_id, amount=2500, kind="add", created_at="2026-10-11T13:00:00Z", applied=1)
+        payload = dict(sourceProjectId="appgprj_6abb452ba1388191badab398f5fb3b58", tables=dict(donors=[donor], donor_point_entries=[entry], reward_requests=[]))
+        path = "/api/admin/import-site-data"
+        self.assertEqual(self.call(self.client(), path, "POST", payload)[0], 403)
+        self.assertEqual(self.call(admin, path, "POST", payload, {"Origin": "https://evil.example"})[0], 403)
+        status, result = self.call(admin, path, "POST", payload)
+        self.assertEqual(status, 200); self.assertFalse(result["alreadyImported"])
+        self.assertTrue(self.call(admin, path, "POST", payload)[1]["alreadyImported"])
+        profile = self.call(admin, "/api/donors?id="+donor_id)[1]["donor"]
+        self.assertEqual(profile["demoPoints"], 2500)
+        self.assertEqual(profile["updatedAt"], donor["updated_at"])
+        history = self.call(admin, "/api/donors/points?id="+donor_id)[1]["entries"]
+        self.assertEqual(history[0]["id"], entry_id)
+        self.assertEqual(history[0]["created_at"], entry["created_at"])
+        payload["tables"]["donors"][0]["points"] = 9000
+        self.assertEqual(self.call(admin, path, "POST", payload)[0], 409)
+        self.assertEqual(self.call(admin, "/api/donors?id="+donor_id)[1]["donor"]["demoPoints"], 2500)
+        db = sqlite3.connect(Path(self.temp.name)/"donate.sqlite")
+        self.assertIsNone(db.execute("SELECT user_id FROM donors WHERE id=?", (donor_id,)).fetchone()[0])
+        db.close()
+        self.assertEqual(len(list(Path(self.temp.name).glob("before-sites-import-*.sqlite"))), 1)
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
