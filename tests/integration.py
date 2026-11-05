@@ -103,10 +103,11 @@ class SystemTests(unittest.TestCase):
         op = {"donorId": d["id"], "entryId": str(uuid.uuid4()), "amount": 3000}
         self.assertEqual(self.call(admin, "/api/donors/points", "POST", op)[1]["donor"]["demoPoints"], 3000)
         self.assertEqual(self.call(admin, "/api/donors/points", "POST", op)[1]["donor"]["demoPoints"], 3000)
+        self.assertEqual(self.call(admin, "/api/donors/donations", "POST", {"donorId": d["id"], "entryId": str(uuid.uuid4()), "revision": self.call(admin, "/api/donors?id="+d["id"])[1]["donor"]["revision"], "cumulativeDonation": 15000, "donationDate": "2026-11-01"})[0], 200)
         tree = {"requestId": str(uuid.uuid4()), "category": "tree", "fields": {"leaves": "2"}, "name": "spoof", "email": "spoof@example.com"}
-        status, data = self.call(alice, "/api/requests", "POST", tree); self.assertEqual(status, 201); self.assertEqual(data["donor"]["demoPoints"], 1000)
-        self.assertEqual(self.call(alice, "/api/requests", "POST", tree)[1]["donor"]["demoPoints"], 1000)
-        self.assertEqual(self.call(alice, "/api/requests", "POST", dict(tree, requestId=str(uuid.uuid4())))[0], 400)
+        status, data = self.call(alice, "/api/requests", "POST", tree); self.assertEqual(status, 201); self.assertEqual(data["donor"]["demoPoints"], 3000)
+        self.assertEqual(self.call(alice, "/api/requests", "POST", tree)[1]["donor"]["demoPoints"], 3000)
+        self.assertEqual(self.call(alice, "/api/requests", "POST", dict(tree, requestId=str(uuid.uuid4())))[0], 409)
         self.assertEqual(self.call(alice, "/api/requests")[1]["requests"][0]["id"], tree["requestId"])
         request = self.call(admin, "/api/requests")[1]["requests"][0]
         self.assertEqual(request["email"], "alice@example.com")
@@ -144,7 +145,7 @@ class SystemTests(unittest.TestCase):
         with concurrent.futures.ThreadPoolExecutor(max_workers=4) as pool:
             responses = list(pool.map(lambda _: self.call(alice, "/api/requests", "POST", retry), range(4)))
         self.assertTrue(all(r[0] in (200, 201) for r in responses))
-        self.assertEqual(self.call(alice, "/api/profile")[1]["donor"]["demoPoints"], 0)
+        self.assertEqual(self.call(alice, "/api/profile")[1]["donor"]["entitlements"]["tree"]["remaining"], 0)
         d = self.call(admin, "/api/donors?id="+d["id"])[1]["donor"]
         self.assertEqual(self.call(admin, "/api/donors", "PATCH", dict(d, email="alice-new@example.com"))[0], 200)
         fresh = self.client(); self.assertEqual(self.call(fresh, "/api/auth/login", "POST", dict(credentials, email="alice-new@example.com"))[0], 200)
@@ -163,10 +164,11 @@ class SystemTests(unittest.TestCase):
         self.assertEqual(len(self.call(admin, "/api/requests")[1]["requests"]), 2)
         self.assertEqual(self.call(admin, "/api/config")[1]["config"]["copy"]["en"]["hello"], "Welcome test")
         d = next(d for d in self.call(admin, "/api/donors")[1]["donors"] if d["email"] == "alice-new@example.com")
-        self.assertEqual(d["demoPoints"], 0)
+        self.assertEqual(d["demoPoints"], 3000)
+        self.assertEqual(d["entitlements"]["tree"]["remaining"], 0)
         self.assertEqual(self.call(admin, d["photoUrl"])[0], 200)
         entries = self.call(admin, "/api/donors/points?id="+d["id"])[1]["entries"]
-        self.assertEqual(len(entries), 3)
+        self.assertEqual(len(entries), 1)
         self.assertEqual(self.call(admin, "/api/donors", "DELETE", {"id": d["id"], "revision": d["revision"]})[0], 200)
         self.assertEqual(self.call(admin, "/api/donors?id="+d["id"])[0], 404)
         # Fulfilment records are retained after profile deletion, as in the original.
@@ -198,6 +200,78 @@ class SystemTests(unittest.TestCase):
         self.assertIsNone(db.execute("SELECT user_id FROM donors WHERE id=?", (donor_id,)).fetchone()[0])
         db.close()
         self.assertEqual(len(list(Path(self.temp.name).glob("before-sites-import-*.sqlite"))), 1)
+
+    def test_04_independent_allowances_and_cumulative_import(self):
+        admin, donor, stranger = self.client(), self.client(), self.client()
+        self.call(admin, "/api/auth/login", "POST", {"email":"admin@example.com","password":PASSWORD})
+        csv = 'English Full Name,Email,Phone,Cumulative Donation,Donation Date\nMonthly Donor,monthly@example.com,1234,5000,2026-11-01\n'
+        status, result = self.call(admin,"/api/donors/import","POST",{"csv":csv,"action":"preview"})
+        self.assertEqual(status,200); self.assertEqual(result["donationUpdates"],1)
+        self.assertEqual(self.call(admin,"/api/donors/import","POST",{"csv":csv,"action":"import"})[0],200)
+        d=next(d for d in self.call(admin,"/api/donors")[1]["donors"] if d["email"]=="monthly@example.com")
+        credentials=self.call(admin,"/api/accounts","POST",{"donorId":d["id"]})[1]
+        self.call(donor,"/api/auth/login","POST",credentials)
+        def profile(): return self.call(donor,"/api/profile")[1]["donor"]
+        def redeem(category, **kw):
+            payload={"requestId":str(uuid.uuid4()),"category":category,"fields":{}}
+            payload.update(kw)
+            return payload,self.call(donor,"/api/requests","POST",payload)
+        self.assertEqual(profile()["cumulativePoints"],1000)
+        for a in profile()["entitlements"].values(): self.assertEqual(a["remaining"],1)
+        self.assertEqual(self.call(stranger,"/api/donors/donations?id="+d["id"])[0],403)
+        self.assertEqual(self.call(donor,"/api/donors/donations","POST",{})[0],403)
+        tree,res=redeem('tree', fields={"leaves":"1"}); self.assertEqual(res[0],201)
+        self.assertEqual(profile()["entitlements"]["airport"]["remaining"],1)
+        for category,kw in [('airport',{'itemId':'airport-1'}),('card',{'fields':{'color':'深綠','personalised':'否'}}),('ticket',{'itemId':'ticket-1'})]:
+            payload,res=redeem(category,**kw); self.assertEqual(res[0],201,(category,res))
+            self.assertEqual(self.call(donor,'/api/requests','POST',payload)[0],200)
+            self.assertEqual(redeem(category,**kw)[1][0],409)
+        self.assertEqual(self.call(admin,'/api/requests','PATCH',{'id':tree['requestId'],'status':'complete'})[0],200)
+        self.assertTrue(all(a['remaining']==0 for a in profile()['entitlements'].values()))
+        self.assertEqual(profile()['cumulativeDonation'],5000)
+        # Repeat file, new date with same total, and an older/lower snapshot never add money twice.
+        self.call(admin,'/api/donors/import','POST',{'csv':csv,'action':'import'})
+        self.assertEqual(len(self.call(donor,'/api/donors/donations')[1]['entries']),1)
+        csv10=csv.replace('5000,2026-11-01','10000,2026-12-01')
+        self.call(admin,'/api/donors/import','POST',{'csv':csv10,'action':'import'})
+        self.assertEqual(profile()['cumulativeDonation'],10000)
+        self.assertEqual(profile()['entitlements']['ticket']['remaining'],0)
+        for c in ['tree','airport','card']:self.assertEqual(profile()['entitlements'][c]['remaining'],1)
+        self.assertEqual(self.call(admin,'/api/donors/import','POST',{'csv':csv,'action':'import'})[1]['skippedLower'],1)
+        self.assertEqual(profile()['cumulativeDonation'],10000)
+        same=csv10.replace('2026-12-01','2027-01-01')
+        self.call(admin,'/api/donors/import','POST',{'csv':same,'action':'import'})
+        self.assertEqual(len(self.call(donor,'/api/donors/donations')[1]['entries']),2)
+        # Partial thresholds and the exact ticket boundary.
+        for amount, tickets in [('49999.99',1),('50000',2),('100000',2)]:
+            d=profile();op={'donorId':d['id'],'revision':d['revision'],'entryId':str(uuid.uuid4()),'cumulativeDonation':amount,'donationDate':'01/01/2027'}
+            self.assertEqual(self.call(admin,'/api/donors/donations','POST',op)[0],200)
+            self.assertEqual(self.call(admin,'/api/donors/donations','POST',op)[0],200)
+            self.assertEqual(profile()['entitlements']['ticket']['earned'],tickets)
+        # Simultaneous distinct submissions can claim the final ticket only once.
+        payloads=[{'requestId':str(uuid.uuid4()),'category':'ticket','itemId':'ticket-1','fields':{}} for _ in range(5)]
+        with concurrent.futures.ThreadPoolExecutor(max_workers=5) as pool:
+            responses=list(pool.map(lambda x:self.call(donor,'/api/requests','POST',x),payloads))
+        self.assertEqual(sum(r[0]==201 for r in responses),1)
+        self.assertEqual(sum(r[0]==409 for r in responses),4)
+        self.assertEqual(profile()['entitlements']['ticket']['remaining'],0)
+        self.assertEqual(profile()['entitlements']['airport']['remaining'],19)
+        self.assertEqual(self.call(admin,'/api/donors/import','POST',{'csv':csv10.replace('10000','bad'),'action':'import'})[0],400)
+        self.assertEqual(self.call(admin,'/api/donors/import','POST',{'csv':csv10.replace('2026-12-01','2026-02-30'),'action':'import'})[0],400)
+        # Corrections keep old usage; an under-threshold donor cannot redeem.
+        d=profile(); op={'donorId':d['id'],'revision':d['revision'],'entryId':str(uuid.uuid4()),'cumulativeDonation':'4999.99','donationDate':'2027-01-02'}
+        self.assertEqual(self.call(admin,'/api/donors/donations','POST',op)[0],200)
+        self.assertEqual(profile()['cumulativePoints'],0)
+        self.assertEqual(profile()['entitlements']['ticket']['used'],2)
+        self.assertEqual(redeem('tree',fields={'leaves':'1'})[1][0],409)
+        # Restart preserves balances and all four kinds of usage.
+        self.stop(); self.start()
+        self.assertEqual(profile()['cumulativeDonation'],4999.99)
+        self.assertEqual(profile()['entitlements']['ticket']['used'],2)
+        self.assertEqual(profile()['entitlements']['tree']['used'],1)
+        # Updating a snapshot with a stale profile revision is rejected.
+        op.update(entryId=str(uuid.uuid4()),cumulativeDonation=15000)
+        self.assertEqual(self.call(admin,'/api/donors/donations','POST',op)[0],409)
 
 
 if __name__ == "__main__":
