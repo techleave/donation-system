@@ -5,8 +5,8 @@
       "demo": "流程示範",
       "home": "兌換首頁",
       "tree": "紀念樹",
-      "airport": "機場",
-      "card": "手工卡片",
+      "airport": "機場貴賓休息室",
+      "card": "旋律手工卡",
       "ticket": "門票",
       "history": "提交記錄",
       "admin": "管理員示範",
@@ -113,8 +113,8 @@
       "demo": "DEMO",
       "home": "Rewards home",
       "tree": "Recognition Tree",
-      "airport": "Airport",
-      "card": "Handmade Card",
+      "airport": "Airport Lounge",
+      "card": "Melody Card",
       "ticket": "Tickets",
       "history": "Requests",
       "admin": "Admin demo",
@@ -353,28 +353,14 @@
       "id": "airport-1",
       "category": "airport",
       "title": {
-        "zh": "機場展區支持名額",
-        "en": "Airport display supporter placement"
+        "zh": "機場貴賓休息室使用權益",
+        "en": "Airport lounge access"
       },
       "description": {
-        "zh": "指定機場展區展示支持者名字；詳情由管理員確認。",
-        "en": "Display a supporter name in a designated airport area; details are confirmed by the team."
+        "zh": "申請一次機場貴賓休息室使用權益，使用安排由團隊跟進確認。",
+        "en": "Request one airport lounge visit. Our team will follow up to confirm the arrangements."
       },
       "points": 1000,
-      "enabled": true
-    },
-    {
-      "id": "airport-2",
-      "category": "airport",
-      "title": {
-        "zh": "機場展示計劃",
-        "en": "Airport display programme"
-      },
-      "description": {
-        "zh": "展示期同位置以最終安排為準。",
-        "en": "Display period and location are subject to final arrangements."
-      },
-      "points": 2000,
       "enabled": true
     },
     {

@@ -15,12 +15,12 @@ for(const lang of ['zh','en']){
  vm.runInContext(`state.lang='${lang}'`,portal);
  const home=vm.runInContext('home()',portal);
  assert.equal((home.match(/class="reward-tile"/g)||[]).length,4);
- assert(home.includes('10,000'));assert(home.includes('2,000'));
+ assert(home.includes('2,000'));assert(!home.includes('HK$'));assert(!home.includes('Cumulative donation'));assert(!home.includes('累計捐款'));
  vm.runInContext('state.view="ticket"',portal);
  assert(vm.runInContext('reward()',portal).includes('class="primary" disabled'));
  vm.runInContext('state.view="airport"',portal);
  assert(!vm.runInContext('reward()',portal).includes('class="primary" disabled'));
- assert(vm.runInContext('ownProfileView()',portal).includes('10,000'));
+ assert(!vm.runInContext('ownProfileView()',portal).includes('HK$'));
  assert(vm.runInContext('treeQuantity()',portal).includes('max="1"'));
 }
 const admin=load('lib/admin.html','load');admin.configFixture=config;admin.donorFixture=donor;
