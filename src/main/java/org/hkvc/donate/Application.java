@@ -19,8 +19,27 @@ public final class Application {
         store=new Store(System.getenv().getOrDefault("DATA_DIR","./data"));
         donations=new Donations(store);
         auth=new Auth(store,System.getenv().getOrDefault("ADMIN_EMAIL",""),System.getenv().getOrDefault("INITIAL_ADMIN_PASSWORD",""),System.getenv().getOrDefault("PUBLIC_URL","").replaceAll("/$",""));
-        defaults=object(JSON.readValue(resourceText("lib/default-config.json"),Map.class));portal=resourceText("lib/portal.html");editor=resourceText("lib/admin.html");
+        defaults=object(JSON.readValue(resourceText("lib/default-config.json"),Map.class));portal=resourceText("lib/portal.html");editor=resourceText("lib/admin.html");updateCommemorativeLeafCopy();
     }
+
+    /** One-time, targeted content edit requested for the commemorative-leaf card. */
+    void updateCommemorativeLeafCopy()throws Exception{
+        String migration="commemorative-leaf-copy-20261111-v1";
+        if(store.one("SELECT name FROM runtime_migrations WHERE name=?",migration)!=null)return;
+        store.transaction(()->{
+            var row=store.one("SELECT draft,published FROM site_content WHERE id=1");if(row==null)return null;
+            var draft=object(JSON.readValue((String)row.get("draft"),Map.class));var published=object(JSON.readValue((String)row.get("published"),Map.class));
+            boolean changed=commemorativeLeafCopy(draft)|commemorativeLeafCopy(published);
+            if(changed){store.update("UPDATE site_content SET draft=?,published=?,revision=revision+1,updated_at=? WHERE id=1",JSON.writeValueAsString(draft),JSON.writeValueAsString(published),Store.now());store.update("INSERT INTO runtime_migrations(name,applied_at) VALUES (?,?)",migration,Store.now());}
+            return null;
+        });
+    }
+    static boolean commemorativeLeafCopy(Map<String,Object> config)throws Exception{
+        for(Object raw:list(config.get("categories"))){var category=object(raw);if(!"gift66e7d1f75cda4ddd93ef092ecfa59178".equals(category.get("id")))continue;
+            category.put("content",JSON.readValue("{\"title\":{\"zh\":\"Tree of Support 紀念葉\",\"en\":\"Tree of Support Commemorative Leaf\"},\"short\":{\"zh\":\"以您的姓名或 Logo 訂製專屬紀念葉\",\"en\":\"A commemorative leaf featuring your name(s) or logo\"},\"description\":{\"zh\":\"您的專屬紀念葉可展示姓名或 Logo（最多 14 個中文字或 38 個英文字元），並將成為持續成長的 Tree of Support 藝術裝置的一部分，於 HKICF 2026 活動期間展出。\",\"en\":\"Your own commemorative leaf featuring your name(s) or logo (up to 14 Chinese or 38 English characters) in our growing Tree of Support, an installation to be showcased throughout the HKICF 2026 event.\"}}",Map.class));return true;
+        }return false;
+    }
+
     public static void main(String[] args)throws Exception{var app=new Application();var server=HttpServer.create(new InetSocketAddress("0.0.0.0",Integer.parseInt(System.getenv().getOrDefault("PORT","8080"))),64);
         server.createContext("/",app::handle);server.setExecutor(new ThreadPoolExecutor(8,8,0L,TimeUnit.MILLISECONDS,new ArrayBlockingQueue<>(64),new ThreadPoolExecutor.CallerRunsPolicy()));
         Runtime.getRuntime().addShutdownHook(new Thread(()->{server.stop(2);try{app.store.close();}catch(Exception ignored){}}));server.start();System.out.println("donate system demo Java backend ready");}
