@@ -1,0 +1,11 @@
+const fs=require('fs'),vm=require('vm'),assert=require('assert');
+const config=JSON.parse(fs.readFileSync('lib/default-config.json','utf8'));
+let js=fs.readFileSync('lib/portal.html','utf8').match(/<script>([\s\S]*?)<\/script>/)[1].replace(/boot\(\);\s*$/,'');
+const ctx=vm.createContext({console,URLSearchParams,Date,Intl,structuredClone,localStorage:{getItem:()=>null,setItem:()=>{}},location:{search:'',origin:'http://localhost',pathname:'/'},window:{addEventListener:()=>{}},document:{querySelector:()=>null,addEventListener:()=>{}},setInterval:()=>{},setTimeout:()=>{},clearTimeout:()=>{}});
+vm.runInContext(js,ctx);ctx.testConfig=config;
+vm.runInContext(`config=testConfig;applyRewardRules();state.lang='en';config.categories[0].content={title:{zh:'新名',en:'Managed title'},short:{zh:'摘要',en:'Managed summary'},description:{zh:'詳情',en:'Managed details'}};`,ctx);
+assert.equal(vm.runInContext("t('tree')",ctx),'Managed title');assert.equal(vm.runInContext("t('treeShort')",ctx),'Managed summary');assert.equal(vm.runInContext("t('treeDesc')",ctx),'Managed details');
+assert(vm.runInContext('home()',ctx).includes('Managed title'));
+vm.runInContext("config.categories[0].archived=true",ctx);assert(!vm.runInContext('home()',ctx).includes('Managed title'));
+const desc=vm.runInContext("field({type:'description',label:{zh:'說明',en:'Explanation'}})",ctx);assert(desc.includes('Explanation'));assert(!desc.includes('<input'));
+console.log('PASS: managed copy appears on real card and details; archived card hidden; descriptions render as text.');
