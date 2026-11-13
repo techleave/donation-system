@@ -90,6 +90,7 @@ public final class Application {
         if(path.equals("/api/donors/points")){points(e,method,p,user);return;}
         if(path.equals("/api/donors/import")&&method.equals("POST")){importDonors(e,user);return;}
         if(path.equals("/api/requests")){requests(e,method,p,user);return;}
+        if(path.equals("/api/leaf-logo")){leafLogo(e,method,p,user);return;}
         if(path.equals("/api/donors/photo")||path.equals("/api/covers")||path.startsWith("/media/")){images(e,path,method,p,user);return;}
         throw new Failure(404,"Not found");
     }
@@ -151,15 +152,28 @@ public final class Application {
     }
     void requests(HttpExchange e,String method,Map<String,String> p,Map<String,Object> user)throws Exception{
         if(method.equals("GET")){if(user==null)throw new Failure(401,"Sign in required");List<Map<String,Object>> rows;if(auth.admin(user))rows=store.all("SELECT id,name,email,category,fields,submitted_at,status FROM reward_requests ORDER BY submitted_at DESC,id DESC LIMIT 51 OFFSET ?",offset(p));else{var d=own(user);if(d==null)throw new Failure(403,"Profile required");rows=store.all("SELECT id,category,fields,submitted_at,status FROM reward_requests WHERE donor_id=? ORDER BY submitted_at DESC,id DESC LIMIT 51 OFFSET ?",d.get("id"),offset(p));}for(var r:rows)r.put("fields",JSON.readValue((String)r.get("fields"),Map.class));json(e,200,map("requests",rows.stream().limit(50).toList(),"hasMore",rows.size()>50));return;}
-        if(method.equals("PATCH")){admin(e,user,true);var b=bodyJson(e);String id=Validation.id(b.get("id")),status=string(b,"status");Validation.require(List.of("pending","complete").contains(status),"Invalid status");int changed=store.update("UPDATE reward_requests SET status=? WHERE id=?",status,id);json(e,changed>0?200:404,map("ok",changed>0));return;}
+        if(method.equals("PATCH")){
+            if(user==null)throw new Failure(401,"Sign in required");auth.sameOrigin(e);var b=bodyJson(e);String id=Validation.id(b.get("id")),status=string(b,"status");
+            var row=store.one("SELECT * FROM reward_requests WHERE id=?",id);if(row==null)throw new Failure(404,"Request not found");
+            boolean leaf=LeafRules.isLeaf((String)row.get("category")),manager=auth.admin(user);var donor=own(user);
+            if(!manager&&(!leaf||donor==null||!donor.get("id").equals(row.get("donor_id"))||!status.equals("cancelled")))throw new Failure(403,"Forbidden");
+            String before=(String)row.get("status");
+            if(leaf){
+                Validation.require(List.of("approved","rejected","cancelled","complete").contains(status),"Invalid review status");
+                if(!before.equals(status)&&!(before.equals("pending")&&List.of("approved","rejected","cancelled").contains(status)||manager&&before.equals("approved")&&status.equals("complete")))throw new Failure(409,"申請狀態已改變，請重新載入 / Request status changed. Reload before continuing.");
+                if(!manager&&!before.equals("pending")&&!before.equals("cancelled"))throw new Failure(409,"已審核的申請不可取消 / Reviewed requests cannot be cancelled");
+            }else{if(!manager)throw new Failure(403,"Forbidden");Validation.require(List.of("pending","complete").contains(status),"Invalid status");}
+            store.transaction(()->{if(!before.equals(status)){var details=object(JSON.readValue((String)row.get("fields"),Map.class));if(leaf)details.put("review",field("狀態更新","Status update",status+" · "+Store.now()));store.update("UPDATE reward_requests SET status=?,fields=? WHERE id=? AND status=?",status,JSON.writeValueAsString(details),id,before);store.update("UPDATE donors SET revision=revision+1,updated_at=? WHERE id=?",Store.now(),row.get("donor_id"));}return null;});
+            json(e,200,map("ok",true,"status",status,"donor",donor==null?null:publicDonor(donorById(donor.get("id")))));return;
+        }
         if(!method.equals("POST"))throw new Failure(405,"Method not allowed");auth.sameOrigin(e);var donor=own(user);if(donor==null)throw new Failure(401,"Please sign in with your donor Profile before submitting.");var b=bodyJson(e);String id=Validation.id(b.get("requestId")),category=string(b,"category");var old=store.one("SELECT * FROM reward_requests WHERE id=?",id);if(old!=null){if(!donor.get("id").equals(old.get("donor_id"))||!category.equals(old.get("category")))throw new Failure(409,"Request identifier already used");json(e,200,map("id",id,"time",old.get("submitted_at"),"fields",JSON.readValue((String)old.get("fields"),Map.class),"status",old.get("status"),"donor",publicDonor(donor)));return;}
         var cfg=object(getContent().get("published"));Validation.require(list(cfg.get("categories")).stream().map(Application::object).anyMatch(c->category.equals(c.get("id"))&&Boolean.TRUE.equals(c.get("enabled"))&&!Boolean.TRUE.equals(c.get("archived"))),"Reward unavailable");var submitted=b.get("fields")==null?map():object(b.get("fields"));var fields=new LinkedHashMap<String,Object>();
-        for(Object raw:list(object(cfg.get("fields")).get(category))){var f=object(raw);if("description".equals(f.get("type")))continue;String key=string(f,"key");if(List.of("displayName","name","contact","customerName","customerEmail","contactName","contactEmail","phone","email").contains(key)){if(key.equals("displayName"))fields.put(key,map("label",f.get("label"),"value",string(donor,"chinese_name").isBlank()?donor.get("english_name"):donor.get("chinese_name")));continue;}
+        for(Object raw:LeafRules.isLeaf(category)?List.of():list(object(cfg.get("fields")).get(category))){var f=object(raw);if("description".equals(f.get("type")))continue;String key=string(f,"key");if(List.of("displayName","name","contact","customerName","customerEmail","contactName","contactEmail","phone","email").contains(key)){if(key.equals("displayName"))fields.put(key,map("label",f.get("label"),"value",string(donor,"chinese_name").isBlank()?donor.get("english_name"):donor.get("chinese_name")));continue;}
             Object val=submitted.getOrDefault(key,"");int maxLength=f.get("maxLength")==null?2000:number(f.get("maxLength"));Validation.require(val instanceof String&&((String)val).length()<=maxLength&&(!Boolean.TRUE.equals(f.get("required"))||!((String)val).isBlank()),"Check "+string(object(f.get("label")),"en"));String value=(String)val;
             if("number".equals(f.get("type"))&&!value.isEmpty()){double n;try{n=Double.parseDouble(value);}catch(Exception ex){throw new Failure(400,"Invalid number");}Validation.require(Double.isFinite(n)&&(f.get("min")==null||n>=((Number)f.get("min")).doubleValue())&&(f.get("max")==null||category.equals("tree")&&key.equals("leaves")||n<=((Number)f.get("max")).doubleValue()),"Invalid number");}
             if("select".equals(f.get("type")))Validation.require(list(f.get("options")).stream().map(Application::object).anyMatch(o->value.equals(o.get("zh"))||value.equals(o.get("en"))),"Invalid choice");fields.put(key,map("label",f.get("label"),"value",value));
         }
-        int quantity=1;
+        int quantity=LeafRules.isLeaf(category)?LeafRules.validate(submitted,fields,(String)donor.get("id"),store):1;
         if(category.equals("tree")){try{double n=Double.parseDouble(string(submitted,"leaves"));Validation.require(Double.isFinite(n)&&n==Math.rint(n)&&n>=1&&n<=10000,"Choose a whole number of trees");quantity=(int)n;}catch(NumberFormatException ex){throw new Failure(400,"Choose a whole number of trees");}
             fields.put("leaves",field("種樹數量","Number of trees",String.valueOf(quantity)));}
         fields.put("quantity",field("使用此項權益次數","Allowance used for this reward",String.valueOf(quantity)));
@@ -167,6 +181,19 @@ public final class Application {
         String now=Store.now(),donorId=(String)donor.get("id"),name=(string(donor,"prefix")+" "+string(donor,"english_name")).trim();int redeemQuantity=quantity;
         store.transaction(()->{donations.reserve(donorId,category,redeemQuantity);store.update("UPDATE donors SET revision=revision+1,updated_at=? WHERE id=?",now,donorId);
             store.update("INSERT INTO reward_requests (id,receipt,name,email,category,donor_id,fields,submitted_at,status) VALUES (?,?,?,?,?,?,?,?,'pending')",id,UUID.randomUUID().toString(),name,donor.get("email"),category,donorId,JSON.writeValueAsString(fields),now);return null;});json(e,201,map("id",id,"time",now,"fields",fields,"status","pending","donor",publicDonor(donorById(donorId))));
+    }
+    void leafLogo(HttpExchange e,String method,Map<String,String> p,Map<String,Object> user)throws Exception{
+        if(user==null)throw new Failure(401,"Sign in required");var donor=own(user);
+        if(method.equals("GET")){
+            String donorId=Validation.id(p.get("donorId")),key=p.getOrDefault("key","");
+            if(!auth.admin(user)&&(donor==null||!donorId.equals(donor.get("id"))))throw new Failure(403,"Forbidden");
+            if(!key.matches("[0-9a-f-]{36}\\.(png|jpg)"))throw new Failure(404,"Not found");var file=store.object("leaf-logos/"+donorId+"/"+key);if(!Files.isRegularFile(file))throw new Failure(404,"Not found");
+            e.getResponseHeaders().set("Cache-Control","private, no-store");bytes(e,200,Files.readAllBytes(file),mime(key));return;
+        }
+        if(!method.equals("POST"))throw new Failure(405,"Method not allowed");auth.sameOrigin(e);if(donor==null)throw new Failure(403,"Donor profile required");
+        var file=multipart(e).get("file");Validation.require(file!=null&&file.bytes.length>0&&file.bytes.length<=2*1024*1024,"Logo must be PNG or JPG, up to 2 MB");String ext=imageExtension(file.bytes,true);
+        try(var input=javax.imageio.ImageIO.createImageInputStream(new ByteArrayInputStream(file.bytes))){var readers=javax.imageio.ImageIO.getImageReaders(input);Validation.require(readers.hasNext(),"Invalid logo image");var reader=readers.next();try{reader.setInput(input);Validation.require(reader.getWidth(0)<=10000&&reader.getHeight(0)<=10000,"Logo dimensions too large");}finally{reader.dispose();}}
+        String key=UUID.randomUUID()+"."+ext;store.put("leaf-logos/"+donor.get("id")+"/"+key,file.bytes);json(e,201,map("key",key));
     }
     static Map<String,Object> field(String zh,String en,Object value){return map("label",map("zh",zh,"en",en),"value",value);}
     record Part(String filename,byte[] bytes){String text(){return new String(bytes,StandardCharsets.UTF_8);}}
@@ -185,4 +212,5 @@ public final class Application {
         Validation.require(parts.containsKey("id")&&parts.containsKey("revision"),"Invalid donor");String id=Validation.id(parts.get("id").text());int revision;try{revision=Integer.parseInt(parts.get("revision").text());}catch(Exception ex){throw new Failure(400,"Invalid revision");}var d=donorById(id);if(d==null)throw new Failure(404,"Donor not found");if(number(d.get("revision"))!=revision)throw new Failure(409,"Profile changed. Reload before uploading.");store.put(key,file.bytes);int changed=store.update("UPDATE donors SET photo_key=?,revision=revision+1,updated_at=? WHERE id=? AND revision=?",key,Store.now(),id,revision);if(changed==0){store.delete(key);throw new Failure(409,"Profile changed. Reload before uploading.");}store.delete((String)d.get("photo_key"));json(e,200,map("donor",publicDonor(donorById(id))));
     }
 }
+
 

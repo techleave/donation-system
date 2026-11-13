@@ -46,7 +46,7 @@ final class Donations {
     }
     Map<String,Object> summary(Object id)throws Exception{
         long total=total(id);var donor=store.one("SELECT points FROM donors WHERE id=?",id);long awarded=donor==null?0:Math.max(0,((Number)donor.get("points")).longValue());long points=total/500000*1000+awarded,units=points/1000;var used=new HashMap<String,Long>();
-        for(var r:store.all("SELECT category,fields FROM reward_requests WHERE donor_id=?",id)){
+        for(var r:store.all("SELECT category,fields FROM reward_requests WHERE donor_id=? AND status NOT IN ('cancelled','rejected')",id)){
             String category=(String)r.get("category");var fields=object(JSON.readValue((String)r.get("fields"),Map.class));
             used.merge(category,quantity(fields,category),Long::sum);
         }
@@ -88,4 +88,5 @@ final class Donations {
         return rows;
     }
 }
+
 
