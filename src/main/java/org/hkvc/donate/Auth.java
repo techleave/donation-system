@@ -19,7 +19,15 @@ final class Auth {
     static String digest(String token)throws Exception{return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(token.getBytes(StandardCharsets.UTF_8)));}
     static String hash(String password){String salt=HexFormat.of().formatHex(random(16));return salt+":"+HexFormat.of().formatHex(SCrypt.generate(password.getBytes(StandardCharsets.UTF_8),salt.getBytes(StandardCharsets.UTF_8),16384,8,1,64));}
     static boolean check(String password,String hash){try{String[] parts=hash.split(":");return MessageDigest.isEqual(HexFormat.of().parseHex(parts[1]),SCrypt.generate(password.getBytes(StandardCharsets.UTF_8),parts[0].getBytes(StandardCharsets.UTF_8),16384,8,1,64));}catch(Exception e){return false;}}
-    String token(HttpExchange e){String cookie=e.getRequestHeaders().getFirst("Cookie");if(cookie!=null)for(String piece:cookie.split(";")){String v=piece.trim();if(v.matches("donate_session=[a-f0-9]{64}"))return v.substring(15);}return null;}
+    String tab(HttpExchange e){
+        String value=e.getRequestHeaders().getFirst("X-Session-Tab");
+        if(value==null)value=Application.params(e).get("sessionTab");
+        if(value==null){String ref=e.getRequestHeaders().getFirst("Referer");if(ref!=null&&!origin.isBlank()&&ref.startsWith(origin+"/"))try{String query=java.net.URI.create(ref).getRawQuery();if(query!=null)for(String part:query.split("&"))if(part.startsWith("sessionTab=")){value=java.net.URLDecoder.decode(part.substring(11),StandardCharsets.UTF_8);break;}}catch(Exception ignored){}}
+        if(value!=null&&!value.matches("[0-9a-f-]{36}"))throw new Application.Failure(400,"Invalid tab session");return value;
+    }
+    String cookieName(HttpExchange e){String tab=tab(e);return tab==null?"donate_session":"donate_session_"+tab.replace("-","");}
+    String token(HttpExchange e){String name=cookieName(e),cookie=e.getRequestHeaders().getFirst("Cookie");if(cookie!=null)for(String piece:cookie.split(";")){String[] parts=piece.trim().split("=",2);if(parts.length==2&&parts[0].equals(name)&&parts[1].matches("[a-f0-9]{64}"))return parts[1];}return null;}
+
     Map<String,Object> user(HttpExchange e)throws Exception{String token=token(e);return token==null?null:store.one("SELECT a.id,a.role,a.donor_id,CASE WHEN a.role='admin' THEN a.email ELSE d.email END AS email FROM sessions s JOIN accounts a ON a.id=s.account_id LEFT JOIN donors d ON d.id=a.donor_id WHERE s.token_hash=? AND s.expires_at>? AND (a.role='admin' OR d.id IS NOT NULL)",digest(token),System.currentTimeMillis());}
     boolean admin(Map<String,Object> user){return user!=null&&"admin".equals(user.get("role"));}
     void sameOrigin(HttpExchange e){String expected=origin.isBlank()?"http://"+e.getRequestHeaders().getFirst("Host"):origin;if(!expected.equals(e.getRequestHeaders().getFirst("Origin")))throw new Application.Failure(403,"Invalid origin");}
@@ -32,10 +40,10 @@ final class Auth {
         boolean valid=check(password,a==null?"0".repeat(32)+":"+"0".repeat(128):(String)a.get("password_hash"));
         if(a==null||!valid){attempts.put(ip,new long[]{attempt!=null&&attempt[1]>now?attempt[0]+1:1,now+900000});if(attempts.size()>10000)attempts.values().removeIf(v->v[1]<now);throw new Application.Failure(401,"Invalid email or password");}
         attempts.remove(ip);String token=HexFormat.of().formatHex(random(32));store.update("DELETE FROM sessions WHERE expires_at<=?",now);store.update("INSERT INTO sessions VALUES (?,?,?)",digest(token),a.get("id"),now+7*86400000L);
-        e.getResponseHeaders().set("Set-Cookie","donate_session="+token+"; Path=/; HttpOnly; SameSite=Lax; Max-Age=604800"+(origin.startsWith("https://")?"; Secure":""));
+        e.getResponseHeaders().set("Set-Cookie",cookieName(e)+"="+token+"; Path=/; HttpOnly; SameSite=Lax; Max-Age=604800"+(origin.startsWith("https://")?"; Secure":""));
         return Application.map("user",Application.map("id",a.get("id"),"email",email,"role",a.get("role")));
     }
-    void logout(HttpExchange e)throws Exception{String token=token(e);if(token!=null)store.update("DELETE FROM sessions WHERE token_hash=?",digest(token));e.getResponseHeaders().set("Set-Cookie","donate_session=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0"+(origin.startsWith("https://")?"; Secure":""));}
+    void logout(HttpExchange e)throws Exception{String token=token(e);if(token!=null)store.update("DELETE FROM sessions WHERE token_hash=?",digest(token));e.getResponseHeaders().set("Set-Cookie",cookieName(e)+"=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0"+(origin.startsWith("https://")?"; Secure":""));}
     Map<String,Object> provision(Map<String,Object> body)throws Exception{
         var d=store.one("SELECT id,email FROM donors WHERE id=?",Application.string(body,"donorId"));if(d==null)throw new Application.Failure(404,"Donor not found");
         if(adminEmail.equals(d.get("email")))throw new Application.Failure(409,"Administrator email cannot be used for a donor login");
@@ -44,3 +52,4 @@ final class Auth {
             store.update("DELETE FROM sessions WHERE account_id=?",id);store.update("UPDATE donors SET user_id=? WHERE id=?",id,d.get("id"));return null;});return Application.map("email",d.get("email"),"password",password);
     }
 }
+
