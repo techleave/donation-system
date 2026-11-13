@@ -1,6 +1,6 @@
 const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict'),{randomUUID}=require('node:crypto');
 function tab(html){const code=html.split('<script>')[1].split('const ADMIN_MODE')[0];const bootstrap=code.slice(0,code.indexOf('const sessionNativeFetch'))+code.slice(code.indexOf('const sessionNativeFetch'),code.indexOf('\nconst ADMIN_MODE')<0?undefined:code.indexOf('\nconst ADMIN_MODE'));let data=new Map(),calls=[];const loc={origin:'https://portal.test',href:'https://portal.test/',search:''};const window={history:{replaceState(a,b,path){loc.href=loc.origin+path;loc.search=new URL(loc.href).search}},fetch:async(i,o)=>{calls.push(o.headers.get('X-Session-Tab'));return {ok:true}}};const context={window,location:loc,sessionStorage:{getItem:k=>data.get(k)||null,setItem:(k,v)=>data.set(k,v)},URL,URLSearchParams,Headers,Request,crypto:{randomUUID},history:function history(){}};vm.createContext(context);vm.runInContext(bootstrap,context);return {context,data,calls,window,loc};}
-const html=fs.readFileSync('tab-sessions/lib/portal.html','utf8'),a=tab(html),b=tab(html);
+const html=fs.readFileSync(require('node:path').join(__dirname,'../lib/portal.html'),'utf8'),a=tab(html),b=tab(html);
 assert.notEqual(a.data.get('hkicf-session-tab-v1'),b.data.get('hkicf-session-tab-v1'));
 const before=a.data.get('hkicf-session-tab-v1');
 vm.runInContext('setSessionTab(crypto.randomUUID())',b.context);
