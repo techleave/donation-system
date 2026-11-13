@@ -45,16 +45,16 @@ final class Donations {
         return 1; // Historical requests without a quantity represent one redemption.
     }
     Map<String,Object> summary(Object id)throws Exception{
-        long total=total(id),units=total/500000;var used=new HashMap<String,Long>();
+        long total=total(id);var donor=store.one("SELECT points FROM donors WHERE id=?",id);long awarded=donor==null?0:Math.max(0,((Number)donor.get("points")).longValue());long points=total/500000*1000+awarded,units=points/1000;var used=new HashMap<String,Long>();
         for(var r:store.all("SELECT category,fields FROM reward_requests WHERE donor_id=?",id)){
             String category=(String)r.get("category");var fields=object(JSON.readValue((String)r.get("fields"),Map.class));
             used.merge(category,quantity(fields,category),Long::sum);
         }
         var rewards=new LinkedHashMap<String,Object>();
         var categoryIds=new LinkedHashSet<String>(Validation.CATEGORIES);var content=store.one("SELECT published FROM site_content WHERE id=1");if(content!=null){var config=object(JSON.readValue((String)content.get("published"),Map.class));for(Object raw:list(config.get("categories"))){String category=string(object(raw),"id");if(Validation.validCategory(category))categoryIds.add(category);}}categoryIds.addAll(used.keySet());
-        for(String category:categoryIds){long earned=category.equals("ticket")?(total>=5000000?2:total>=500000?1:0):units;
+        for(String category:categoryIds){long earned=category.equals("ticket")?(points>=10000?2:points>=1000?1:0):units;
             long redeemed=used.getOrDefault(category,0L);rewards.put(category,map("earned",earned,"used",redeemed,"remaining",Math.max(0,earned-redeemed)));}
-        return map("cumulativeDonation",BigDecimal.valueOf(total,2),"cumulativePoints",units*1000,"entitlements",rewards);
+        return map("cumulativeDonation",BigDecimal.valueOf(total,2),"cumulativePoints",points,"awardedPoints",awarded,"entitlements",rewards);
     }
     void reserve(Object donorId,String category,int quantity)throws Exception{
         var summary=summary(donorId);var reward=object(object(summary.get("entitlements")).get(category));
