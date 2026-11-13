@@ -12,12 +12,12 @@ import java.util.concurrent.*;
 /** Java HTTP/API application. Railway hosts both this JVM and its persistent SQLite/files volume. */
 public final class Application {
     static final ObjectMapper JSON=new ObjectMapper();
-    final Store store;final Donations donations;final Auth auth;final Map<String,Object> defaults;
+    final Store store;final Donations donations;final TreeAdoptions treeAdoptions;final Auth auth;final Map<String,Object> defaults;
     final String portal,editor;
     static final int MAX_BODY=12*1024*1024;
     public Application()throws Exception{
         store=new Store(System.getenv().getOrDefault("DATA_DIR","./data"));
-        donations=new Donations(store);
+        donations=new Donations(store);treeAdoptions=new TreeAdoptions(this);
         auth=new Auth(store,System.getenv().getOrDefault("ADMIN_EMAIL",""),System.getenv().getOrDefault("INITIAL_ADMIN_PASSWORD",""),System.getenv().getOrDefault("PUBLIC_URL","").replaceAll("/$",""));
         defaults=object(JSON.readValue(resourceText("lib/default-config.json"),Map.class));portal=resourceText("lib/portal.html");editor=resourceText("lib/admin.html");updateCommemorativeLeafCopy();
     }
@@ -90,6 +90,7 @@ public final class Application {
         if(path.equals("/api/donors/points")){points(e,method,p,user);return;}
         if(path.equals("/api/donors/import")&&method.equals("POST")){importDonors(e,user);return;}
         if(path.equals("/api/requests")){requests(e,method,p,user);return;}
+        if(path.equals("/api/tree-adoptions")||path.equals("/api/tree-adoptions/qr")){treeAdoptions.handle(e,method,p,user,path.endsWith("/qr"));return;}
         if(path.equals("/api/leaf-logo")){leafLogo(e,method,p,user);return;}
         if(path.equals("/api/donors/photo")||path.equals("/api/covers")||path.startsWith("/media/")){images(e,path,method,p,user);return;}
         throw new Failure(404,"Not found");
@@ -212,5 +213,6 @@ public final class Application {
         Validation.require(parts.containsKey("id")&&parts.containsKey("revision"),"Invalid donor");String id=Validation.id(parts.get("id").text());int revision;try{revision=Integer.parseInt(parts.get("revision").text());}catch(Exception ex){throw new Failure(400,"Invalid revision");}var d=donorById(id);if(d==null)throw new Failure(404,"Donor not found");if(number(d.get("revision"))!=revision)throw new Failure(409,"Profile changed. Reload before uploading.");store.put(key,file.bytes);int changed=store.update("UPDATE donors SET photo_key=?,revision=revision+1,updated_at=? WHERE id=? AND revision=?",key,Store.now(),id,revision);if(changed==0){store.delete(key);throw new Failure(409,"Profile changed. Reload before uploading.");}store.delete((String)d.get("photo_key"));json(e,200,map("donor",publicDonor(donorById(id))));
     }
 }
+
 
 
