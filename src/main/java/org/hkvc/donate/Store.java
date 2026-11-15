@@ -19,6 +19,7 @@ final class Store implements AutoCloseable {
             transaction(()->{for(String sql:Application.resourceText("drizzle/"+name).split(";")) if(!sql.isBlank()) exec(sql);
                 update("INSERT INTO runtime_migrations VALUES (?,?)",name,now()); return null;});
         }
+        if(all("PRAGMA table_info(donors)").stream().noneMatch(c->"address".equals(c.get("name"))))exec("ALTER TABLE donors ADD COLUMN address TEXT NOT NULL DEFAULT ''");
         exec("CREATE TABLE IF NOT EXISTS accounts (id TEXT PRIMARY KEY,email TEXT NOT NULL UNIQUE,password_hash TEXT NOT NULL,role TEXT NOT NULL CHECK(role IN ('admin','donor')),donor_id TEXT UNIQUE REFERENCES donors(id) ON DELETE CASCADE)");
         exec("CREATE TABLE IF NOT EXISTS sessions (token_hash TEXT PRIMARY KEY,account_id TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,expires_at INTEGER NOT NULL)");
     }
@@ -41,3 +42,4 @@ final class Store implements AutoCloseable {
     void delete(String key)throws Exception{if(key==null)return;Files.deleteIfExists(object(key));Files.deleteIfExists(object(key+".meta.json"));}
     public void close()throws SQLException{db.close();}
 }
+
