@@ -43,6 +43,12 @@ final class Auth {
         e.getResponseHeaders().set("Set-Cookie",cookieName(e)+"="+token+"; Path=/; HttpOnly; SameSite=Lax; Max-Age=604800"+(origin.startsWith("https://")?"; Secure":""));
         return Application.map("user",Application.map("id",a.get("id"),"email",email,"role",a.get("role")));
     }
+    Map<String,Object> fork(HttpExchange e,Map<String,Object> user,Map<String,Object> body)throws Exception{
+        sameOrigin(e);String next=Application.string(body,"nextTab");if(!next.matches("[0-9a-f-]{36}")||next.equals(tab(e)))throw new Application.Failure(400,"Invalid new tab context");
+        if(user==null)return Application.map("ok",true);
+        String token=HexFormat.of().formatHex(random(32));store.update("INSERT INTO sessions VALUES (?,?,?)",digest(token),user.get("id"),System.currentTimeMillis()+7*86400000L);
+        e.getResponseHeaders().set("Set-Cookie","donate_session_"+next.replace("-","")+"="+token+"; Path=/; HttpOnly; SameSite=Lax; Max-Age=604800"+(origin.startsWith("https://")?"; Secure":""));return Application.map("ok",true);
+    }
     void logout(HttpExchange e)throws Exception{String token=token(e);if(token!=null)store.update("DELETE FROM sessions WHERE token_hash=?",digest(token));e.getResponseHeaders().set("Set-Cookie",cookieName(e)+"=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0"+(origin.startsWith("https://")?"; Secure":""));}
     Map<String,Object> provision(Map<String,Object> body)throws Exception{
         var d=store.one("SELECT id,email FROM donors WHERE id=?",Application.string(body,"donorId"));if(d==null)throw new Application.Failure(404,"Donor not found");
@@ -52,4 +58,5 @@ final class Auth {
             store.update("DELETE FROM sessions WHERE account_id=?",id);store.update("UPDATE donors SET user_id=? WHERE id=?",id,d.get("id"));return null;});return Application.map("email",d.get("email"),"password",password);
     }
 }
+
 

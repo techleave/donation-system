@@ -1,8 +1,19 @@
-const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict'),{randomUUID}=require('node:crypto');
-function tab(html){const code=html.split('<script>')[1].split('const ADMIN_MODE')[0];const bootstrap=code.slice(0,code.indexOf('const sessionNativeFetch'))+code.slice(code.indexOf('const sessionNativeFetch'),code.indexOf('\nconst ADMIN_MODE')<0?undefined:code.indexOf('\nconst ADMIN_MODE'));let data=new Map(),calls=[];const loc={origin:'https://portal.test',href:'https://portal.test/',search:''};const window={history:{replaceState(a,b,path){loc.href=loc.origin+path;loc.search=new URL(loc.href).search}},fetch:async(i,o)=>{calls.push(o.headers.get('X-Session-Tab'));return {ok:true}}};const context={window,location:loc,sessionStorage:{getItem:k=>data.get(k)||null,setItem:(k,v)=>data.set(k,v)},URL,URLSearchParams,Headers,Request,crypto:{randomUUID},history:function history(){}};vm.createContext(context);vm.runInContext(bootstrap,context);return {context,data,calls,window,loc};}
-const html=fs.readFileSync(require('node:path').join(__dirname,'../lib/portal.html'),'utf8'),a=tab(html),b=tab(html);
-assert.notEqual(a.data.get('hkicf-session-tab-v1'),b.data.get('hkicf-session-tab-v1'));
-const before=a.data.get('hkicf-session-tab-v1');
-vm.runInContext('setSessionTab(crypto.randomUUID())',b.context);
-assert.equal(a.data.get('hkicf-session-tab-v1'),before);
-Promise.all([a.window.fetch('/api/profile'),b.window.fetch('/api/profile')]).then(()=>{assert.equal(a.calls[0],before);assert.notEqual(a.calls[0],b.calls[0]);assert.ok(a.loc.search.includes('sessionTab='));console.log('Tab bootstrap isolation passed, including the existing history() function.');});
+const fs=require('node:fs'),path=require('node:path'),vm=require('node:vm'),assert=require('node:assert/strict'),{randomUUID}=require('node:crypto');
+const html=fs.readFileSync(path.join(__dirname,'../lib/portal.html'),'utf8');
+assert.ok(!/function history\s*\(/.test(html),'Do not shadow native window.history');
+assert.ok(html.includes('function requestHistoryView('));
+const code=html.split('<script>')[1].split('const ADMIN_MODE')[0];
+async function tab(saved=[],name='',search=''){
+ const data=new Map(saved),calls=[],location={origin:'https://portal.test',href:'https://portal.test/'+search,search};
+ const c={name,location,URL,URLSearchParams,Headers,Request,crypto:{randomUUID},sessionStorage:{getItem:k=>data.get(k)||null,setItem:(k,v)=>data.set(k,v)},history:{replaceState(a,b,p){location.href=location.origin+p;location.search=new URL(location.href).search}},fetch:async(i,o)=>{calls.push({url:i,tab:o.headers.get('X-Session-Tab'),body:o.body});return {ok:true}}};
+ c.window=c;c.top=c;c.self=c;vm.createContext(c);vm.runInContext(code,c);await vm.runInContext('tabSessionReady',c);return {c,data,calls};
+}
+(async()=>{
+ const a=await tab(),b=await tab(),key='hkicf-session-tab-v1',id=a.data.get(key);
+ assert.notEqual(id,b.data.get(key));
+ const copy=await tab(a.data);assert.notEqual(copy.data.get(key),id);assert.equal(copy.calls[0].url,'/api/auth/fork');assert.equal(copy.calls[0].tab,id);assert.equal(a.data.get(key),id);
+ const reload=await tab(a.data,a.c.name,'?sessionTab='+id);assert.equal(reload.data.get(key),id);assert.equal(reload.calls.length,0);
+ const fresh=await tab(a.data,'','?newAccount=1&sessionTab='+id);assert.notEqual(fresh.data.get(key),id);assert.equal(fresh.calls.length,0);assert.ok(!fresh.c.location.search.includes('newAccount'));assert.equal(a.data.get(key),id);
+ await a.c.fetch('/api/profile');assert.equal(a.calls[0].tab,id);
+ console.log('Fresh tabs, duplicated tabs, reloads and another-account isolation passed.');
+})().catch(e=>{console.error(e);process.exitCode=1});

@@ -73,6 +73,7 @@ public final class Application {
     void route(HttpExchange e,String path,String method)throws Exception{
         var p=params(e);var user=auth.user(e);
         if(path.equals("/api/auth/login")&&method.equals("POST")){json(e,200,auth.login(e,bodyJson(e)));return;}
+        if(path.equals("/api/auth/fork")&&method.equals("POST")){json(e,200,auth.fork(e,user,bodyJson(e)));return;}
         if(path.equals("/api/auth/me")&&method.equals("GET")){json(e,200,map("user",user));return;}
         if(path.equals("/api/accounts")&&method.equals("POST")){admin(e,user,true);json(e,200,auth.provision(bodyJson(e)));return;}
         if(path.equals("/api/admin/import-site-data")&&method.equals("POST")){admin(e,user,true);json(e,200,new Migration(store).importData(bodyJson(e)));return;}
@@ -80,7 +81,7 @@ public final class Application {
         if(path.equals("/")||path.equals("/signin")||path.equals("/admin")||path.equals("/admin/editor")){
             if(!method.equals("GET"))throw new Failure(405,"Method not allowed");
             if(path.startsWith("/admin")){if(user==null){redirect(e,302,"/signin?return_to="+URLEncoder.encode(path,StandardCharsets.UTF_8));return;}admin(e,user,false);}
-            if(path.equals("/signin")&&user!=null){String target=p.getOrDefault("return_to","");redirect(e,303,target.startsWith("/")&&!target.startsWith("//")&&!target.startsWith("/signin")&&!target.contains("\\")?target:auth.admin(user)?"/admin":"/");return;}
+            if(path.equals("/signin")&&user!=null&&!"1".equals(p.get("newAccount"))){String target=p.getOrDefault("return_to","");redirect(e,303,target.startsWith("/")&&!target.startsWith("//")&&!target.startsWith("/signin")&&!target.contains("\\")?target:auth.admin(user)?"/admin":"/");return;}
             e.getResponseHeaders().set("Cache-Control","no-store");String html=path.equals("/admin/editor")?editor:path.equals("/admin")?portal.replace("const ADMIN_MODE=false;","const ADMIN_MODE=true;"):portal;bytes(e,200,html.getBytes(StandardCharsets.UTF_8),"text/html; charset=utf-8");return;
         }
         if(path.equals("/api/profile")&&method.equals("GET")){if(user==null)throw new Failure(401,"Sign in to view your profile");var d=own(user);json(e,200,map("donor",d==null?null:publicDonor(d)));return;}
@@ -213,6 +214,7 @@ public final class Application {
         Validation.require(parts.containsKey("id")&&parts.containsKey("revision"),"Invalid donor");String id=Validation.id(parts.get("id").text());int revision;try{revision=Integer.parseInt(parts.get("revision").text());}catch(Exception ex){throw new Failure(400,"Invalid revision");}var d=donorById(id);if(d==null)throw new Failure(404,"Donor not found");if(number(d.get("revision"))!=revision)throw new Failure(409,"Profile changed. Reload before uploading.");store.put(key,file.bytes);int changed=store.update("UPDATE donors SET photo_key=?,revision=revision+1,updated_at=? WHERE id=? AND revision=?",key,Store.now(),id,revision);if(changed==0){store.delete(key);throw new Failure(409,"Profile changed. Reload before uploading.");}store.delete((String)d.get("photo_key"));json(e,200,map("donor",publicDonor(donorById(id))));
     }
 }
+
 
 
 

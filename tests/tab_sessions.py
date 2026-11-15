@@ -21,6 +21,15 @@ class TabSessionTests(SystemTests):
   self.assertEqual(self.call(browser,'/api/auth/me',headers={'Referer':self.base+'/?sessionTab='+donor_tab})[1]['user']['role'],'donor')
   self.assertIsNone(self.call(browser,'/api/auth/me',headers={'X-Session-Tab':str(uuid.uuid4())})[1]['user'])
   self.assertIsNone(self.call(browser,'/api/auth/me')[1]['user'])
+  # Opening another tab clones the session into an independent cookie.
+  cloned=str(uuid.uuid4());ch={'X-Session-Tab':cloned}
+  self.assertEqual(self.call(browser,'/api/auth/fork','POST',{'nextTab':cloned},dh)[0],200)
+  self.assertEqual(self.call(browser,'/api/auth/me',headers=ch)[1]['user']['role'],'donor')
+  self.call(browser,'/signout?sessionTab='+cloned)
+  self.assertEqual(self.call(browser,'/api/auth/me',headers=dh)[1]['user']['role'],'donor')
+  # Fresh sign-in must show the form even when an account is already signed in.
+  code,html=self.call(browser,'/signin?newAccount=1&sessionTab='+admin_tab)
+  self.assertEqual(code,200);self.assertIn(b'newAccountRequested',html)
   # Logging out the donor tab must leave the admin session alive.
   self.call(browser,'/signout?sessionTab='+donor_tab)
   self.assertIsNone(self.call(browser,'/api/auth/me',headers=dh)[1]['user'])
