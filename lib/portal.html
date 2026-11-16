@@ -136,7 +136,13 @@ html[lang="zh-HK"] .donor-main .impact-copy h1{font-size:clamp(39px,5.2vw,73px);
 @media(prefers-reduced-motion:reduce){.donation-float{transition:none}}
 </style><style>.reward-cover img.cover-adjusted{transform-origin:center;transition:none}</style><style>.panel>p,.gift-description{white-space:pre-line}.gift-description{margin:20px 0;color:#59674c;line-height:1.7}</style><style id="vip-back-buttons">.panel>button.back{display:inline-flex;align-items:center;gap:9px;min-height:42px;padding:10px 15px;margin:0 0 22px;border:1px solid rgba(52,87,65,.42);border-radius:7px;background:#f5f0df;color:#294d3b;font-family:inherit;font-size:14px;line-height:1.3;font-weight:600;letter-spacing:.01em;box-shadow:0 2px 5px rgba(34,65,47,.04);transition:background .22s ease,color .22s ease,border-color .22s ease,box-shadow .22s ease;cursor:pointer}.panel>button.back .back-arrow{display:block;width:17px;height:17px;flex-shrink:0;transition:transform .22s ease}.panel>button.back:hover{background:#244a3a;color:#fff8e8;border-color:#244a3a;box-shadow:0 4px 12px rgba(34,65,47,.12)}.panel>button.back:hover .back-arrow{transform:translateX(-2px)}.panel>button.back:active{box-shadow:none}.panel>button.back:focus-visible{outline:2px solid #aa925a;outline-offset:4px}@media(max-width:600px){.panel>button.back{font-size:13px;padding:10px 13px;margin-bottom:20px}}@media(prefers-reduced-motion:reduce){.panel>button.back,.panel>button.back .back-arrow{transition:none}}</style><style>.leaf-personalisation{margin:24px 0;padding-top:20px;border-top:1px solid #c9c3a7}.leaf-personalisation h3{font-size:22px;color:#294d3b}.leaf-personalisation small{display:block;margin-top:8px}.leaf-cancel{display:block;margin-top:12px;padding:9px 14px;border:1px solid #8b987e;border-radius:6px;background:transparent;color:#294d3b;font-size:13px}</style><style id="adopted-tree-deck">
 .tree-library{margin:34px 0 48px;padding:30px;border:1px solid #d7ceb0;border-radius:14px;background:rgba(255,253,244,.55)}.tree-library h2{font:36px Georgia,serif;color:#254c39;margin:12px 0}.tree-library-heading p{font-size:14px;line-height:1.7;max-width:650px;color:#66705b}.tree-stack-area{max-width:430px;margin:34px auto 0;padding:0 20px}.tree-stack{position:relative;height:490px;touch-action:pan-y;outline-offset:12px}.tree-qr-card{position:absolute;inset:0;display:flex;align-items:center;flex-direction:column;text-align:center;border:1px solid #c7bea0;border-radius:22px;background:#fffdf5;padding:28px 22px;box-shadow:0 16px 36px rgba(32,68,46,.12);transition:transform .35s ease,opacity .35s ease;transform-origin:center bottom}.tree-depth-0{z-index:3}.tree-depth-1{z-index:2;transform:translate(12px,-14px) rotate(3deg) scale(.96);background:#eee9d6;pointer-events:none}.tree-depth-2{z-index:1;transform:translate(22px,-27px) rotate(6deg) scale(.92);background:#e2dfc9;pointer-events:none}.tree-depth-1>*,.tree-depth-2>*{visibility:hidden}.tree-card-kicker{font-size:10px;letter-spacing:.18em;color:#8c7843}.tree-qr-card h3{font:25px Georgia,serif;color:#274e3b;margin:17px 0 6px}.tree-card-number{font-size:12px;color:#69725e}.tree-qr{width:218px;height:218px;max-width:100%;margin:16px 0 4px;background:white;image-rendering:pixelated}.tree-qr-card p{font-size:13px;margin:10px 0 18px;color:#69725e}.tree-open-link{padding:10px 18px;border:1px solid #9da88e;border-radius:6px;text-decoration:none;color:#254c39;font-size:13px}.tree-open-link:hover{background:#254c39;color:#fff9e7}.tree-deck-controls{display:flex;align-items:center;justify-content:center;gap:24px;margin-top:22px;font-size:13px;color:#62705c}.tree-deck-controls button{width:40px;height:40px;border:1px solid #b6b99e;border-radius:50%;background:transparent;color:#254c39}.tree-deck-controls button:disabled{opacity:.35}.tree-waiting{padding:24px;border-top:1px solid #d7ceb0;font-size:14px;color:#65715c}@media(max-width:600px){.tree-library{padding:20px 14px}.tree-stack-area{padding:0 12px}.tree-qr-card{padding:24px 16px}.tree-stack{height:475px}.tree-library h2{font-size:30px}}@media(prefers-reduced-motion:reduce){.tree-qr-card{transition:none}}
-</style><style>.another-account{display:block;margin-top:22px;color:#e4d8b4;font-size:13px;text-decoration:underline;text-underline-offset:4px}.another-account:hover{color:white}</style></head><body><div id="app"></div><script>
+</style><style>.another-account{display:block;margin-top:22px;color:#e4d8b4;font-size:13px;text-decoration:underline;text-underline-offset:4px}.another-account:hover{color:white}</style><style id="password-visibility-style">
+.password-visibility{position:relative;display:block;width:100%}
+.password-visibility input{padding-right:76px!important}
+.password-visibility .password-toggle{position:absolute;right:8px;top:50%;transform:translateY(-50%);margin:0;min-height:36px;min-width:56px;padding:6px 9px;border:0;border-radius:5px;background:transparent;color:#366538;font-size:13px;font-weight:500;cursor:pointer;box-shadow:none}
+.password-visibility .password-toggle:hover{background:#3665380c}
+.password-visibility .password-toggle:focus-visible{outline:2px solid #927c45;outline-offset:1px}
+</style></head><body><div id="app"></div><script>
 // A non-secret tab identifier selects an HttpOnly session cookie.
 // Explicit logins always start a new context, so another tab is unaffected.
 const SESSION_TAB_KEY='hkicf-session-tab-v1';
@@ -232,6 +238,26 @@ function closeEditor(){const dialog=$('#manager-editor');const frame=dialog.quer
 let syncing=false;async function syncContent(){if(syncing||!config)return;syncing=true;try{const r=await fetch('/api/config');if(!r.ok)return;const d=await r.json();applyRewardRules(d.config);if(JSON.stringify(d.config)!==JSON.stringify(config)){preserve();config=d.config;revision=d.revision;render()}}catch(e){console.warn('Content sync unavailable')}finally{syncing=false}}
 window.addEventListener('message',e=>{if(ADMIN_MODE&&e.origin===location.origin&&e.source===$('#manager-editor')?.querySelector('iframe')?.contentWindow&&e.data?.type==='content-published')syncContent()});setInterval(()=>{if(!document.hidden)syncContent()},10000);window.addEventListener('focus',syncContent);window.addEventListener('focus',()=>{if(!ADMIN_MODE&&state.logged){loadOwnProfile();if(state.view==='tree')loadTreeAdoptions()}});document.addEventListener('visibilitychange',()=>{if(!document.hidden&&!ADMIN_MODE&&state.logged){loadOwnProfile();if(state.view==='tree')loadTreeAdoptions()}});
 boot();
+
+/* Password visibility is local to each input and resets on each form render. */
+function enhancePasswordInputs(){
+ document.querySelectorAll('input[type="password"]').forEach(input=>{
+  if(input.parentElement.classList.contains('password-visibility'))return;
+  const wrap=document.createElement('div');wrap.className='password-visibility';
+  input.before(wrap);wrap.appendChild(input);
+  const button=document.createElement('button');button.type='button';button.className='password-toggle';
+  button.textContent=state.lang==='zh'?'顯示':'Show';
+  button.setAttribute('aria-label',state.lang==='zh'?'顯示密碼':'Show password');button.setAttribute('aria-pressed','false');
+  button.addEventListener('click',()=>{
+   const show=input.type==='password';input.type=show?'text':'password';
+   button.textContent=state.lang==='zh'?(show?'隱藏':'顯示'):(show?'Hide':'Show');
+   button.setAttribute('aria-label',state.lang==='zh'?(show?'隱藏密碼':'顯示密碼'):(show?'Hide password':'Show password'));
+   button.setAttribute('aria-pressed',String(show));
+  });wrap.appendChild(button);
+ });
+}
+new MutationObserver(enhancePasswordInputs).observe(document.getElementById('app'),{childList:true,subtree:true});
+enhancePasswordInputs();
 </script></body></html>
 
 
