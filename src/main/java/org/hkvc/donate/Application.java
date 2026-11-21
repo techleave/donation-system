@@ -19,7 +19,7 @@ public final class Application {
         store=new Store(System.getenv().getOrDefault("DATA_DIR","./data"));
         donations=new Donations(store);treeAdoptions=new TreeAdoptions(this);
         auth=new Auth(store,System.getenv().getOrDefault("ADMIN_EMAIL",""),System.getenv().getOrDefault("INITIAL_ADMIN_PASSWORD",""),System.getenv().getOrDefault("PUBLIC_URL","").replaceAll("/$",""));
-        defaults=object(JSON.readValue(resourceText("lib/default-config.json"),Map.class));portal=resourceText("lib/portal.html");editor=resourceText("lib/admin.html");updateCommemorativeLeafCopy();
+        defaults=object(JSON.readValue(resourceText("lib/default-config.json"),Map.class));portal=resourceText("lib/portal.html");editor=resourceText("lib/admin.html");updateCommemorativeLeafCopy();updateExclusiveBenefits();
     }
 
     /** One-time, targeted content edit requested for the commemorative-leaf card. */
@@ -38,6 +38,36 @@ public final class Application {
         for(Object raw:list(config.get("categories"))){var category=object(raw);if(!"gift66e7d1f75cda4ddd93ef092ecfa59178".equals(category.get("id")))continue;
             category.put("content",JSON.readValue("{\"title\":{\"zh\":\"Tree of Support 紀念葉\",\"en\":\"Tree of Support Commemorative Leaf\"},\"short\":{\"zh\":\"以您的姓名或 Logo 訂製專屬紀念葉\",\"en\":\"A commemorative leaf featuring your name(s) or logo\"},\"description\":{\"zh\":\"您的專屬紀念葉可展示姓名或 Logo（最多 14 個中文字或 38 個英文字元），並將成為持續成長的 Tree of Support 藝術裝置的一部分，於 HKICF 2026 活動期間展出。\",\"en\":\"Your own commemorative leaf featuring your name(s) or logo (up to 14 Chinese or 38 English characters) in our growing Tree of Support, an installation to be showcased throughout the HKICF 2026 event.\"}}",Map.class));return true;
         }return false;
+    }
+
+
+    /** Add the requested benefits without replacing other gifts, covers or donor data. */
+    void updateExclusiveBenefits()throws Exception{
+        String migration="exclusive-benefits-20261121-v1";
+        if(store.one("SELECT name FROM runtime_migrations WHERE name=?",migration)!=null)return;
+        store.transaction(()->{
+            var row=store.one("SELECT draft,published FROM site_content WHERE id=1");if(row==null)return null;
+            var draft=object(JSON.readValue((String)row.get("draft"),Map.class));var published=object(JSON.readValue((String)row.get("published"),Map.class));
+            exclusiveBenefits(draft);exclusiveBenefits(published);
+            store.update("UPDATE site_content SET draft=?,published=?,revision=revision+1,updated_at=? WHERE id=1",JSON.writeValueAsString(draft),JSON.writeValueAsString(published),Store.now());
+            store.update("INSERT INTO runtime_migrations(name,applied_at) VALUES (?,?)",migration,Store.now());return null;
+        });
+    }
+    static void exclusiveBenefits(Map<String,Object> config){
+        String category="gifta94a1d5bd0014b7fa00ebe992bf7016c";
+        for(Object raw:list(config.get("categories"))){var c=object(raw);if(category.equals(c.get("id"))){
+            var content=c.get("content")==null?map():object(c.get("content"));
+            content.put("description",map("zh","捐款者可享 HKVC／HKICF 專屬禮遇，包括本次籌款計劃特別設計的紀念襟章及合作餐廳優惠。我們亦會不定期舉辦捐款者專屬活動，例如私人放映、捐款者聚會及後台導賞。每次兌換使用 1,000 積分，具體安排由團隊跟進確認。","en","In addition to the above, donors will be entitled to HKVC/HKICF exclusive benefits such as a special pin designed for this campaign, and discounts at partnering restaurants. From time to time, we organise exclusive donors’ events such as private screening sessions, donors’ gatherings and backstage tours. Each redemption uses 1,000 points. Our team will follow up to confirm the arrangements."));
+            c.put("content",content);
+        }}
+        var items=list(config.get("items"));
+        String[][] benefits={
+            {"campaign-pin","活動紀念襟章","Campaign pin","專為本次籌款計劃設計的紀念襟章。","A special pin designed for this fundraising campaign."},
+            {"restaurant-benefit","合作餐廳優惠","Partner restaurant discounts","合作餐廳的捐款者專屬優惠，適用餐廳及詳情由團隊確認。","Exclusive discounts at partnering restaurants. Our team will confirm participating restaurants and details."},
+            {"donor-events","捐款者專屬活動","Exclusive donors’ events","不定期舉辦私人放映、捐款者聚會及後台導賞，活動安排由團隊確認。","Private screening sessions, donors’ gatherings and backstage tours organised from time to time. Our team will confirm event arrangements."}
+        };
+        for(String[] b:benefits){String id="exclusive-"+b[0];if(items.stream().map(Application::object).noneMatch(i->id.equals(i.get("id"))))
+            items.add(map("id",id,"category",category,"title",map("zh",b[1],"en",b[2]),"description",map("zh",b[3],"en",b[4]),"points",1000,"enabled",true));}
     }
 
     public static void main(String[] args)throws Exception{var app=new Application();var server=HttpServer.create(new InetSocketAddress("0.0.0.0",Integer.parseInt(System.getenv().getOrDefault("PORT","8080"))),64);
