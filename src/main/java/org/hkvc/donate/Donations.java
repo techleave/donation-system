@@ -12,6 +12,7 @@ final class Donations {
     final Store store;
     Donations(Store store)throws Exception{
         this.store=store;
+        store.exec("CREATE TABLE IF NOT EXISTS manual_reward_allowances (donor_id TEXT NOT NULL REFERENCES donors(id) ON DELETE CASCADE,category TEXT NOT NULL,total INTEGER NOT NULL CHECK(total>=0),updated_at TEXT NOT NULL,PRIMARY KEY(donor_id,category))");
         store.exec("CREATE TABLE IF NOT EXISTS reward_forfeitures (id TEXT PRIMARY KEY,donor_id TEXT NOT NULL REFERENCES donors(id) ON DELETE CASCADE,category TEXT NOT NULL,quantity INTEGER NOT NULL CHECK(quantity>0),created_at TEXT NOT NULL)");
         if(store.one("SELECT name FROM runtime_migrations WHERE name='donation-entitlements-v1'")!=null)return;
         // Keep a recoverable copy before introducing the new accounting tables.
@@ -55,7 +56,7 @@ final class Donations {
         var categoryIds=new LinkedHashSet<String>(Validation.CATEGORIES);var content=store.one("SELECT published FROM site_content WHERE id=1");if(content!=null){var config=object(JSON.readValue((String)content.get("published"),Map.class));for(Object raw:list(config.get("categories"))){String category=string(object(raw),"id");if(Validation.validCategory(category))categoryIds.add(category);}}categoryIds.addAll(used.keySet());
         for(var f:store.all("SELECT category,SUM(quantity) AS quantity FROM reward_forfeitures WHERE donor_id=? GROUP BY category",id))used.merge((String)f.get("category"),((Number)f.get("quantity")).longValue(),Long::sum);
         for(String category:categoryIds){long earned=category.equals("ticket")?(points>=10000?2:points>=1000?1:0):units;
-            if(guidedCategory(category))earned=total/500000;long redeemed=used.getOrDefault(category,0L);rewards.put(category,map("earned",earned,"used",redeemed,"remaining",Math.max(0,earned-redeemed)));}
+            if(guidedCategory(category))earned=total/500000;if(category.equals("gifta94a1d5bd0014b7fa00ebe992bf7016c")){var grant=store.one("SELECT total FROM manual_reward_allowances WHERE donor_id=? AND category=?",id,category);earned=grant==null?0:((Number)grant.get("total")).longValue();}long redeemed=used.getOrDefault(category,0L);rewards.put(category,map("earned",earned,"used",redeemed,"remaining",Math.max(0,earned-redeemed)));}
         return map("cumulativeDonation",BigDecimal.valueOf(total,2),"cumulativePoints",points,"awardedPoints",awarded,"entitlements",rewards);
     }
     static boolean guidedCategory(String category){return List.of("tree","airport","card","gift66e7d1f75cda4ddd93ef092ecfa59178").contains(category);}
@@ -91,6 +92,7 @@ final class Donations {
         return rows;
     }
 }
+
 
 
 
