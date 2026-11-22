@@ -179,6 +179,7 @@ public final class Application {
         admin(e,user,true);var b=bodyJson(e);String action=string(b,"action");Validation.require(List.of("preview","import").contains(action),"Invalid import action");
         json(e,200,new DonorImport(this).run(b,action.equals("import")));
     }
+    static boolean deliveryAddressField(Map<String,Object> f){String key=string(f,"key").toLowerCase(Locale.ROOT);var label=object(f.get("label"));String text=(string(label,"zh")+" "+string(label,"en")).toLowerCase(Locale.ROOT);return !key.contains("email")&&!text.contains("email")&&(key.contains("address")||text.contains("地址")||text.contains("address"));}
     static String postalAddress(Object value){Validation.require(value==null||value instanceof String,"Invalid address");String address=value==null?"":((String)value).trim();Validation.require(address.length()<=1000,"Address must be at most 1,000 characters");return address;}
     void requests(HttpExchange e,String method,Map<String,String> p,Map<String,Object> user)throws Exception{
         if(method.equals("GET")){if(user==null)throw new Failure(401,"Sign in required");List<Map<String,Object>> rows;if(auth.admin(user))rows=store.all("SELECT id,name,email,category,fields,submitted_at,status FROM reward_requests ORDER BY submitted_at DESC,id DESC LIMIT 51 OFFSET ?",offset(p));else{var d=own(user);if(d==null)throw new Failure(403,"Profile required");rows=store.all("SELECT id,category,fields,submitted_at,status FROM reward_requests WHERE donor_id=? ORDER BY submitted_at DESC,id DESC LIMIT 51 OFFSET ?",d.get("id"),offset(p));}for(var r:rows)r.put("fields",JSON.readValue((String)r.get("fields"),Map.class));json(e,200,map("requests",rows.stream().limit(50).toList(),"hasMore",rows.size()>50));return;}
@@ -203,7 +204,8 @@ public final class Application {
             if("number".equals(f.get("type"))&&!value.isEmpty()){double n;try{n=Double.parseDouble(value);}catch(Exception ex){throw new Failure(400,"Invalid number");}Validation.require(Double.isFinite(n)&&(f.get("min")==null||n>=((Number)f.get("min")).doubleValue())&&(f.get("max")==null||category.equals("tree")&&key.equals("leaves")||n<=((Number)f.get("max")).doubleValue()),"Invalid number");}
             if("select".equals(f.get("type")))Validation.require(list(f.get("options")).stream().map(Application::object).anyMatch(o->value.equals(o.get("zh"))||value.equals(o.get("en"))),"Invalid choice");fields.put(key,map("label",f.get("label"),"value",value));
         }
-        String deliveryAddress=category.equals("card")?postalAddress(submitted.getOrDefault("address",string(donor,"address"))):"";
+        String addressFromFields="";if(!LeafRules.isLeaf(category))for(Object raw:list(object(cfg.get("fields")).get(category))){var f=object(raw);if(deliveryAddressField(f)&&!"description".equals(f.get("type"))){var saved=fields.get(string(f,"key"));if(saved instanceof Map){String candidate=postalAddress(object(saved).get("value"));if(!candidate.isBlank()){addressFromFields=candidate;break;}}}}
+        String deliveryAddress=category.equals("card")?postalAddress(submitted.getOrDefault("address",string(donor,"address"))):addressFromFields;
         if(category.equals("card")){Validation.require(!deliveryAddress.isBlank(),"請填寫郵寄地址 / Enter a delivery address");fields.put("address",field("郵寄地址","Delivery address",deliveryAddress));}
         int quantity=LeafRules.isLeaf(category)?LeafRules.validate(submitted,fields,(String)donor.get("id"),store):1;
         if(category.equals("tree")){try{double n=Double.parseDouble(string(submitted,"leaves"));Validation.require(Double.isFinite(n)&&n==Math.rint(n)&&n>=1&&n<=10000,"Choose a whole number of trees");quantity=(int)n;}catch(NumberFormatException ex){throw new Failure(400,"Choose a whole number of trees");}
@@ -211,7 +213,7 @@ public final class Application {
         fields.put("quantity",field("使用此項權益次數","Allowance used for this reward",String.valueOf(quantity)));
         if(List.of("airport","ticket").contains(category)||list(cfg.get("items")).stream().map(Application::object).anyMatch(i->category.equals(i.get("category"))&&Boolean.TRUE.equals(i.get("enabled")))){var item=list(cfg.get("items")).stream().map(Application::object).filter(i->Objects.equals(i.get("id"),b.get("itemId"))&&category.equals(i.get("category"))&&Boolean.TRUE.equals(i.get("enabled"))).findFirst().orElseThrow(()->new Failure(400,"Select an available item"));fields.put("reward",field("兌換項目","Reward",item.get("title")));if(category.equals("ticket"))fields.put("mode",field("兌換方式","Redemption type",item.get("mode")));}
         String now=Store.now(),donorId=(String)donor.get("id"),name=(string(donor,"prefix")+" "+string(donor,"english_name")).trim();int redeemQuantity=quantity;
-        store.transaction(()->{donations.reserve(donorId,category,redeemQuantity);if(category.equals("card"))store.update("UPDATE donors SET address=? WHERE id=? AND trim(address)=''",deliveryAddress,donorId);store.update("UPDATE donors SET revision=revision+1,updated_at=? WHERE id=?",now,donorId);
+        store.transaction(()->{donations.reserve(donorId,category,redeemQuantity);if(!deliveryAddress.isBlank())store.update("UPDATE donors SET address=? WHERE id=? AND trim(address)=''",deliveryAddress,donorId);store.update("UPDATE donors SET revision=revision+1,updated_at=? WHERE id=?",now,donorId);
             store.update("INSERT INTO reward_requests (id,receipt,name,email,category,donor_id,fields,submitted_at,status) VALUES (?,?,?,?,?,?,?,?,'pending')",id,UUID.randomUUID().toString(),name,donor.get("email"),category,donorId,JSON.writeValueAsString(fields),now);return null;});json(e,201,map("id",id,"time",now,"fields",fields,"status","pending","donor",publicDonor(donorById(donorId))));
     }
     void leafLogo(HttpExchange e,String method,Map<String,String> p,Map<String,Object> user)throws Exception{
@@ -244,6 +246,7 @@ public final class Application {
         Validation.require(parts.containsKey("id")&&parts.containsKey("revision"),"Invalid donor");String id=Validation.id(parts.get("id").text());int revision;try{revision=Integer.parseInt(parts.get("revision").text());}catch(Exception ex){throw new Failure(400,"Invalid revision");}var d=donorById(id);if(d==null)throw new Failure(404,"Donor not found");if(number(d.get("revision"))!=revision)throw new Failure(409,"Profile changed. Reload before uploading.");store.put(key,file.bytes);int changed=store.update("UPDATE donors SET photo_key=?,revision=revision+1,updated_at=? WHERE id=? AND revision=?",key,Store.now(),id,revision);if(changed==0){store.delete(key);throw new Failure(409,"Profile changed. Reload before uploading.");}store.delete((String)d.get("photo_key"));json(e,200,map("donor",publicDonor(donorById(id))));
     }
 }
+
 
 
 
