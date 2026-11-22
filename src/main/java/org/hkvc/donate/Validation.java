@@ -9,7 +9,7 @@ final class Validation {
     static String id(Object value){require(value instanceof String&&((String)value).matches("[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"),"Invalid identifier");return (String)value;}
     static Map<String,Object> donor(Map<String,Object> b){var out=new LinkedHashMap<String,Object>();var limits=Application.map("prefix",40,"englishName",150,"chineseName",100,"phone",50,"email",180);
         for(var entry:limits.entrySet()){Object value=b.getOrDefault(entry.getKey(),"");require(value instanceof String&&((String)value).length()<=(int)entry.getValue()&&!((String)value).matches("(?s).*[\\x00-\\x1f].*"),"Invalid "+entry.getKey());out.put(entry.getKey(),((String)value).trim());}
-        out.put("email",((String)out.get("email")).toLowerCase(Locale.ROOT));require(!out.get("englishName").equals(""),"English full name is required");require(((String)out.get("email")).matches("[^\\s@]+@[^\\s@]+\\.[^\\s@]+"),"Valid email is required");return out;
+        out.put("email",((String)out.get("email")).toLowerCase(Locale.ROOT));require(!out.get("englishName").equals("")||!out.get("chineseName").equals(""),"Name is required");require(((String)out.get("email")).isBlank()||((String)out.get("email")).matches("[^\\s@]+@[^\\s@]+\\.[^\\s@]+"),"Valid email is required");return out;
     }
     static final List<String> CATEGORIES=List.of("tree","airport","card","ticket");
     static boolean validCategory(Object id){return CATEGORIES.contains(id)||id instanceof String s&&s.matches("gift[a-f0-9]{32}");}
@@ -38,5 +38,6 @@ final class Validation {
         require(indices.get("englishName")>=0&&indices.get("email")>=0,"Missing English full name or email column");var result=new ArrayList<Map<String,Object>>();var seen=new HashSet<>();for(int i=1;i<rows.size();i++){var row=rows.get(i);require(row.size()==headers.size(),"CSV row "+(i+1)+": column count differs from header");var b=new HashMap<String,Object>();indices.forEach((k,v)->b.put(k,v<0?"":row.get(v)));var d=donor(b);require(seen.add(d.get("email")),"Duplicate email in CSV");result.add(d);}return result;
     }
 }
+
 
 

@@ -52,11 +52,13 @@ final class Auth {
     void logout(HttpExchange e)throws Exception{String token=token(e);if(token!=null)store.update("DELETE FROM sessions WHERE token_hash=?",digest(token));e.getResponseHeaders().set("Set-Cookie",cookieName(e)+"=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0"+(origin.startsWith("https://")?"; Secure":""));}
     Map<String,Object> provision(Map<String,Object> body)throws Exception{
         var d=store.one("SELECT id,email FROM donors WHERE id=?",Application.string(body,"donorId"));if(d==null)throw new Application.Failure(404,"Donor not found");
+        if(Application.string(d,"email").isBlank())throw new Application.Failure(400,"請先補填電郵再開通登入 / Add an email before creating a login");
         if(adminEmail.equals(d.get("email")))throw new Application.Failure(409,"Administrator email cannot be used for a donor login");
         var old=store.one("SELECT id FROM accounts WHERE donor_id=?",d.get("id"));String id=old==null?UUID.randomUUID().toString():(String)old.get("id"),password=Base64.getUrlEncoder().withoutPadding().encodeToString(random(18));
         store.transaction(()->{store.update("INSERT INTO accounts (id,email,password_hash,role,donor_id) VALUES (?,?,?,'donor',?) ON CONFLICT(donor_id) DO UPDATE SET email=excluded.email,password_hash=excluded.password_hash",id,d.get("email"),hash(password),d.get("id"));
             store.update("DELETE FROM sessions WHERE account_id=?",id);store.update("UPDATE donors SET user_id=? WHERE id=?",id,d.get("id"));return null;});return Application.map("email",d.get("email"),"password",password);
     }
 }
+
 
 

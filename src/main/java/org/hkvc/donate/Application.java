@@ -138,7 +138,7 @@ public final class Application {
             String search=p.getOrDefault("search","");if(search.length()>150)search=search.substring(0,150);String term="%"+search.replace("!","!!").replace("%","!%").replace("_","!_")+"%";var rows=store.all("SELECT * FROM donors WHERE english_name LIKE ? ESCAPE '!' OR chinese_name LIKE ? ESCAPE '!' OR phone LIKE ? ESCAPE '!' OR email LIKE ? ESCAPE '!' ORDER BY english_name COLLATE NOCASE,id LIMIT 51 OFFSET ?",term,term,term,term,offset(p));json(e,200,map("donors",publicDonors(rows.stream().limit(50).toList()),"hasMore",rows.size()>50));return;}
         var b=bodyJson(e);String now=Store.now();if(method.equals("POST")){var d=Validation.donor(b);String address=postalAddress(b.get("address"));String id=UUID.randomUUID().toString();int changed=store.update("INSERT OR IGNORE INTO donors (id,prefix,english_name,chinese_name,phone,email,address,revision,created_at,updated_at) VALUES (?,?,?,?,?,?,?,1,?,?)",id,d.get("prefix"),d.get("englishName"),d.get("chineseName"),d.get("phone"),d.get("email"),address,now,now);if(changed==0)throw new Failure(409,"A donor with this email already exists");json(e,201,map("donor",publicDonor(donorById(id))));return;}
         String id=Validation.id(b.get("id"));int revision=Validation.integer(b.get("revision"),1,Integer.MAX_VALUE,"Invalid revision");var old=donorById(id);if(old==null)throw new Failure(404,"Donor not found");
-        if(method.equals("PATCH")){var d=Validation.donor(b);String address=b.containsKey("address")?postalAddress(b.get("address")):string(old,"address");if(store.one("SELECT id FROM donors WHERE email=? AND id<>?",d.get("email"),id)!=null)throw new Failure(409,"A donor with this email already exists");int changed=store.transaction(()->{if(number(old.get("revision"))!=revision)throw new Failure(409,"This profile changed. Reload before editing.");
+        if(method.equals("PATCH")){var d=Validation.donor(b);if(string(d,"email").isBlank()&&store.one("SELECT id FROM accounts WHERE donor_id=?",id)!=null)throw new Failure(400,"An active login account must retain its email");String address=b.containsKey("address")?postalAddress(b.get("address")):string(old,"address");if(store.one("SELECT id FROM donors WHERE email=? AND id<>?",d.get("email"),id)!=null)throw new Failure(409,"A donor with this email already exists");int changed=store.transaction(()->{if(number(old.get("revision"))!=revision)throw new Failure(409,"This profile changed. Reload before editing.");
                 // Update account email as well; changing a profile email never creates a stale duplicate login.
                 if(store.one("SELECT id FROM accounts WHERE email=? AND (donor_id IS NULL OR donor_id<>?)",d.get("email"),id)!=null)throw new Failure(409,"This email is already used by another account");store.update("UPDATE accounts SET email=? WHERE donor_id=?",d.get("email"),id);
                 return store.update("UPDATE donors SET prefix=?,english_name=?,chinese_name=?,phone=?,email=?,address=?,revision=revision+1,updated_at=? WHERE id=? AND revision=?",d.get("prefix"),d.get("englishName"),d.get("chineseName"),d.get("phone"),d.get("email"),address,now,id,revision);});if(changed==0)throw new Failure(409,"This profile changed. Reload before editing.");json(e,200,map("donor",publicDonor(donorById(id))));return;}
@@ -168,19 +168,8 @@ public final class Application {
     }
     static String donationImportId(Object donorId,Map<String,Object> d){return UUID.nameUUIDFromBytes(("donation-snapshot-v1:"+donorId+":"+d.get("donationDate")+":"+d.get("donationMinor")).getBytes(StandardCharsets.UTF_8)).toString();}
     void importDonors(HttpExchange e,Map<String,Object> user)throws Exception{
-        admin(e,user,true);var b=bodyJson(e);Validation.require(b.get("csv") instanceof String&&List.of("preview","import").contains(b.get("action")),"Invalid import");
-        var rows=Donations.csv((String)b.get("csv"));int existing=0,donationUpdates=0,lower=0,unchanged=0;
-        for(var d:rows){var old=store.one("SELECT * FROM donors WHERE email=?",d.get("email"));if(old!=null)existing++;
-            if(d.containsKey("donationMinor")){long before=old==null?0:donations.total(old.get("id")),amount=((Number)d.get("donationMinor")).longValue();
-                if(amount<before)lower++;else if(amount==before||old!=null&&store.one("SELECT id FROM donation_entries WHERE id=?",donationImportId(old.get("id"),d))!=null)unchanged++;else donationUpdates++;}}
-        var result=map("total",rows.size(),"added",rows.size()-existing,"updated",existing,"donationUpdates",donationUpdates,"skippedLower",lower,"unchangedDonations",unchanged);
-        if(b.get("action").equals("preview")){result.put("preview",rows.stream().limit(5).toList());json(e,200,result);return;}
-        String now=Store.now();store.transaction(()->{for(var d:rows){
-            // Email is the stable import key. Existing accounts, photographs and redemption records remain linked.
-            store.update("INSERT INTO donors (id,prefix,english_name,chinese_name,phone,email,revision,created_at,updated_at) VALUES (?,?,?,?,?,?,1,?,?) ON CONFLICT(email) DO UPDATE SET prefix=excluded.prefix,english_name=excluded.english_name,chinese_name=excluded.chinese_name,phone=excluded.phone,revision=donors.revision+1,updated_at=excluded.updated_at",UUID.randomUUID().toString(),d.get("prefix"),d.get("englishName"),d.get("chineseName"),d.get("phone"),d.get("email"),now,now);
-            if(d.containsKey("donationMinor")){var donor=store.one("SELECT id FROM donors WHERE email=?",d.get("email"));String id=(String)donor.get("id");
-                donations.snapshot(donationImportId(id,d),id,((Number)d.get("donationMinor")).longValue(),(String)d.get("donationDate"),"csv-cumulative",false);}
-        }return null;});json(e,200,result);
+        admin(e,user,true);var b=bodyJson(e);String action=string(b,"action");Validation.require(List.of("preview","import").contains(action),"Invalid import action");
+        json(e,200,new DonorImport(this).run(b,action.equals("import")));
     }
     static String postalAddress(Object value){Validation.require(value==null||value instanceof String,"Invalid address");String address=value==null?"":((String)value).trim();Validation.require(address.length()<=1000,"Address must be at most 1,000 characters");return address;}
     void requests(HttpExchange e,String method,Map<String,String> p,Map<String,Object> user)throws Exception{
@@ -247,6 +236,7 @@ public final class Application {
         Validation.require(parts.containsKey("id")&&parts.containsKey("revision"),"Invalid donor");String id=Validation.id(parts.get("id").text());int revision;try{revision=Integer.parseInt(parts.get("revision").text());}catch(Exception ex){throw new Failure(400,"Invalid revision");}var d=donorById(id);if(d==null)throw new Failure(404,"Donor not found");if(number(d.get("revision"))!=revision)throw new Failure(409,"Profile changed. Reload before uploading.");store.put(key,file.bytes);int changed=store.update("UPDATE donors SET photo_key=?,revision=revision+1,updated_at=? WHERE id=? AND revision=?",key,Store.now(),id,revision);if(changed==0){store.delete(key);throw new Failure(409,"Profile changed. Reload before uploading.");}store.delete((String)d.get("photo_key"));json(e,200,map("donor",publicDonor(donorById(id))));
     }
 }
+
 
 
 
