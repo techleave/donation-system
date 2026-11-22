@@ -12,13 +12,14 @@ import java.util.concurrent.*;
 /** Java HTTP/API application. Railway hosts both this JVM and its persistent SQLite/files volume. */
 public final class Application {
     static final ObjectMapper JSON=new ObjectMapper();
-    final Store store;final Donations donations;final TreeAdoptions treeAdoptions;final Auth auth;final Map<String,Object> defaults;
+    final Store store;final Donations donations;final TreeAdoptions treeAdoptions;final Concerts concerts;final Auth auth;final Map<String,Object> defaults;
     final String portal,editor;
     static final int MAX_BODY=12*1024*1024;
     public Application()throws Exception{
         store=new Store(System.getenv().getOrDefault("DATA_DIR","./data"));
-        donations=new Donations(store);treeAdoptions=new TreeAdoptions(this);
+        donations=new Donations(store);treeAdoptions=new TreeAdoptions(this);concerts=new Concerts(this);
         auth=new Auth(store,System.getenv().getOrDefault("ADMIN_EMAIL",""),System.getenv().getOrDefault("INITIAL_ADMIN_PASSWORD",""),System.getenv().getOrDefault("PUBLIC_URL","").replaceAll("/$",""));
+        auth.bootstrapTestDonors(this);
         defaults=object(JSON.readValue(resourceText("lib/default-config.json"),Map.class));portal=resourceText("lib/portal.html");editor=resourceText("lib/admin.html");updateCommemorativeLeafCopy();updateExclusiveBenefits();
     }
 
@@ -116,6 +117,8 @@ public final class Application {
         }
         if(path.equals("/api/profile")&&method.equals("GET")){if(user==null)throw new Failure(401,"Sign in to view your profile");var d=own(user);json(e,200,map("donor",d==null?null:publicDonor(d)));return;}
         if(path.equals("/api/config")){content(e,method,p,user);return;}
+        if(path.equals("/api/concerts")){concerts.events(e,method,p,user);return;}
+        if(path.equals("/api/concert-responses")){concerts.responses(e,method,p,user);return;}
         if(path.equals("/api/donors")){donors(e,method,p,user);return;}
         if(path.equals("/api/donors/donations")){donationHistory(e,method,p,user);return;}
         if(path.equals("/api/donors/points")){points(e,method,p,user);return;}
@@ -182,7 +185,7 @@ public final class Application {
     static boolean deliveryAddressField(Map<String,Object> f){String key=string(f,"key").toLowerCase(Locale.ROOT);var label=object(f.get("label"));String text=(string(label,"zh")+" "+string(label,"en")).toLowerCase(Locale.ROOT);return !key.contains("email")&&!text.contains("email")&&(key.contains("address")||text.contains("地址")||text.contains("address"));}
     static String postalAddress(Object value){Validation.require(value==null||value instanceof String,"Invalid address");String address=value==null?"":((String)value).trim();Validation.require(address.length()<=1000,"Address must be at most 1,000 characters");return address;}
     void requests(HttpExchange e,String method,Map<String,String> p,Map<String,Object> user)throws Exception{
-        if(method.equals("GET")){if(user==null)throw new Failure(401,"Sign in required");List<Map<String,Object>> rows;if(auth.admin(user))rows=store.all("SELECT id,name,email,category,fields,submitted_at,status FROM reward_requests ORDER BY submitted_at DESC,id DESC LIMIT 51 OFFSET ?",offset(p));else{var d=own(user);if(d==null)throw new Failure(403,"Profile required");rows=store.all("SELECT id,category,fields,submitted_at,status FROM reward_requests WHERE donor_id=? ORDER BY submitted_at DESC,id DESC LIMIT 51 OFFSET ?",d.get("id"),offset(p));}for(var r:rows)r.put("fields",JSON.readValue((String)r.get("fields"),Map.class));json(e,200,map("requests",rows.stream().limit(50).toList(),"hasMore",rows.size()>50));return;}
+        if(method.equals("GET")){if(user==null)throw new Failure(401,"Sign in required");List<Map<String,Object>> rows;if(auth.admin(user))rows=store.all("SELECT id,name,email,category,fields,submitted_at,status FROM reward_requests ORDER BY submitted_at DESC,id DESC LIMIT 51 OFFSET ?",offset(p));else{var d=own(user);if(d==null)throw new Failure(403,"Profile required");rows=store.all("SELECT id,category,fields,submitted_at,status FROM reward_requests WHERE donor_id=? ORDER BY submitted_at DESC,id DESC LIMIT 51 OFFSET ?",d.get("id"),offset(p));}for(var r:rows){r.put("fields",JSON.readValue((String)r.get("fields"),Map.class));if("forfeited".equals(r.get("status"))){var f=store.one("SELECT created_at FROM reward_forfeitures WHERE id=?",r.get("id"));r.put("forfeitedAt",f==null?r.get("submitted_at"):f.get("created_at"));}}json(e,200,map("requests",rows.stream().limit(50).toList(),"hasMore",rows.size()>50));return;}
         if(method.equals("PATCH")){
             if(user==null)throw new Failure(401,"Sign in required");auth.sameOrigin(e);var b=bodyJson(e);String id=Validation.id(b.get("id")),status=string(b,"status");
             var row=store.one("SELECT * FROM reward_requests WHERE id=?",id);if(row==null)throw new Failure(404,"Request not found");
@@ -246,6 +249,7 @@ public final class Application {
         Validation.require(parts.containsKey("id")&&parts.containsKey("revision"),"Invalid donor");String id=Validation.id(parts.get("id").text());int revision;try{revision=Integer.parseInt(parts.get("revision").text());}catch(Exception ex){throw new Failure(400,"Invalid revision");}var d=donorById(id);if(d==null)throw new Failure(404,"Donor not found");if(number(d.get("revision"))!=revision)throw new Failure(409,"Profile changed. Reload before uploading.");store.put(key,file.bytes);int changed=store.update("UPDATE donors SET photo_key=?,revision=revision+1,updated_at=? WHERE id=? AND revision=?",key,Store.now(),id,revision);if(changed==0){store.delete(key);throw new Failure(409,"Profile changed. Reload before uploading.");}store.delete((String)d.get("photo_key"));json(e,200,map("donor",publicDonor(donorById(id))));
     }
 }
+
 
 
 

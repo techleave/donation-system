@@ -16,6 +16,21 @@ final class Auth {
             store.update("INSERT INTO accounts (id,email,password_hash,role) VALUES (?,?,?,'admin')",UUID.randomUUID().toString(),adminEmail,hash(password));}
     }
     static byte[] random(int size){byte[] b=new byte[size];new SecureRandom().nextBytes(b);return b;}
+    /** One-off operator bootstrap, restricted to the three fictional upload-test donors.
+     * Only hashes travel through deployment configuration; plaintext passwords are never logged. */
+    void bootstrapTestDonors(Application app)throws Exception{
+        String input=System.getenv().getOrDefault("HKICF_TEST_DONOR_LOGIN_HASHES","");if(input.isBlank())return;
+        var entries=Application.list(Application.JSON.readValue(input,List.class));
+        for(Object raw:entries){var item=Application.object(raw);String email=Application.string(item,"email"),passwordHash=Application.string(item,"passwordHash");
+            Validation.require(email.matches("hkicf-test-[abc]@example\\.com")&&passwordHash.matches("[a-f0-9]{32}:[a-f0-9]{128}"),"Invalid test login bootstrap");
+            String marker="test-donor-login-v1:"+email+":"+digest(passwordHash);if(store.one("SELECT name FROM runtime_migrations WHERE name=?",marker)!=null)continue;
+            var donor=store.one("SELECT id FROM donors WHERE email=?",email);
+            if(donor==null&&item.get("createIfMissing") instanceof Map){var seed=Application.object(item.get("createIfMissing"));var values=List.of(Application.string(seed,"name"),Application.string(seed,"phone"),email,Application.string(seed,"address"),Application.string(seed,"total"),"2026-11-22");String csv="姓名,電話,郵箱,個人地址,捐款總額（HKD）,最新捐款日期\n"+values.stream().map(v->"\""+v.replace("\"","\"\"")+"\"").collect(java.util.stream.Collectors.joining(","));new DonorImport(app).run(Application.map("csv",csv),true);donor=store.one("SELECT id FROM donors WHERE email=?",email);}
+            if(donor==null)continue;String donorId=(String)donor.get("id");
+            var old=store.one("SELECT id FROM accounts WHERE donor_id=?",donor.get("id"));String accountId=old==null?UUID.randomUUID().toString():(String)old.get("id");
+            store.transaction(()->{store.update("INSERT INTO accounts (id,email,password_hash,role,donor_id) VALUES (?,?,?,'donor',?) ON CONFLICT(donor_id) DO UPDATE SET email=excluded.email,password_hash=excluded.password_hash",accountId,email,passwordHash,donorId);store.update("DELETE FROM sessions WHERE account_id=?",accountId);store.update("UPDATE donors SET user_id=? WHERE id=?",accountId,donorId);store.update("INSERT INTO runtime_migrations VALUES (?,?)",marker,Store.now());return null;});
+        }
+    }
     static String digest(String token)throws Exception{return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(token.getBytes(StandardCharsets.UTF_8)));}
     static String hash(String password){String salt=HexFormat.of().formatHex(random(16));return salt+":"+HexFormat.of().formatHex(SCrypt.generate(password.getBytes(StandardCharsets.UTF_8),salt.getBytes(StandardCharsets.UTF_8),16384,8,1,64));}
     static boolean check(String password,String hash){try{String[] parts=hash.split(":");return MessageDigest.isEqual(HexFormat.of().parseHex(parts[1]),SCrypt.generate(password.getBytes(StandardCharsets.UTF_8),parts[0].getBytes(StandardCharsets.UTF_8),16384,8,1,64));}catch(Exception e){return false;}}
@@ -59,6 +74,7 @@ final class Auth {
             store.update("DELETE FROM sessions WHERE account_id=?",id);store.update("UPDATE donors SET user_id=? WHERE id=?",id,d.get("id"));return null;});return Application.map("email",d.get("email"),"password",password);
     }
 }
+
 
 
 
