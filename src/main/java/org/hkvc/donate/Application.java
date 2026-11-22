@@ -120,6 +120,10 @@ public final class Application {
         if(path.equals("/api/donors/donations")){donationHistory(e,method,p,user);return;}
         if(path.equals("/api/donors/points")){points(e,method,p,user);return;}
         if(path.equals("/api/donors/import")&&method.equals("POST")){importDonors(e,user);return;}
+        if(path.equals("/api/rewards/forfeit")&&method.equals("POST")){
+            auth.sameOrigin(e);var donor=own(user);if(donor==null)throw new Failure(401,"Donor sign-in required");var b=bodyJson(e);String id=Validation.id(b.get("requestId")),category=string(b,"category");Validation.require(Donations.guidedCategory(category),"Invalid reward");int quantity=Validation.integer(b.get("quantity"),1,10000000,"Invalid quantity");
+            store.transaction(()->{var old=store.one("SELECT * FROM reward_forfeitures WHERE id=?",id);if(old!=null){if(!donor.get("id").equals(old.get("donor_id"))||!category.equals(old.get("category"))||number(old.get("quantity"))!=quantity)throw new Failure(409,"Operation already used");return null;}donations.reserve(donor.get("id"),category,quantity);store.update("INSERT INTO reward_forfeitures VALUES (?,?,?,?,?)",id,donor.get("id"),category,quantity,Store.now());store.update("INSERT INTO reward_requests (id,receipt,name,email,category,donor_id,fields,submitted_at,status) VALUES (?,?,?,?,?,?,?,?, 'forfeited')",id,UUID.randomUUID().toString(),donor.get("english_name"),donor.get("email"),category,donor.get("id"),JSON.writeValueAsString(map("quantity",field("放棄次數","Forfeited allowances",String.valueOf(quantity)))),Store.now());store.update("UPDATE donors SET revision=revision+1,updated_at=? WHERE id=?",Store.now(),donor.get("id"));return null;});json(e,200,map("donor",publicDonor(donorById(donor.get("id")))));return;
+        }
         if(path.equals("/api/requests")){requests(e,method,p,user);return;}
         if(path.equals("/api/tree-adoptions")||path.equals("/api/tree-adoptions/qr")){treeAdoptions.handle(e,method,p,user,path.endsWith("/qr"));return;}
         if(path.equals("/api/leaf-logo")){leafLogo(e,method,p,user);return;}
@@ -179,7 +183,7 @@ public final class Application {
             var row=store.one("SELECT * FROM reward_requests WHERE id=?",id);if(row==null)throw new Failure(404,"Request not found");
             boolean leaf=LeafRules.isLeaf((String)row.get("category")),manager=auth.admin(user);var donor=own(user);
             if(!manager&&(!leaf||donor==null||!donor.get("id").equals(row.get("donor_id"))||!status.equals("cancelled")))throw new Failure(403,"Forbidden");
-            String before=(String)row.get("status");
+            String before=(String)row.get("status");if(before.equals("forfeited"))throw new Failure(409,"Forfeited allowances cannot be restored");
             if(leaf){
                 Validation.require(List.of("approved","rejected","cancelled","complete").contains(status),"Invalid review status");
                 if(!before.equals(status)&&!(before.equals("pending")&&List.of("approved","rejected","cancelled").contains(status)||manager&&before.equals("approved")&&status.equals("complete")))throw new Failure(409,"申請狀態已改變，請重新載入 / Request status changed. Reload before continuing.");
@@ -236,6 +240,7 @@ public final class Application {
         Validation.require(parts.containsKey("id")&&parts.containsKey("revision"),"Invalid donor");String id=Validation.id(parts.get("id").text());int revision;try{revision=Integer.parseInt(parts.get("revision").text());}catch(Exception ex){throw new Failure(400,"Invalid revision");}var d=donorById(id);if(d==null)throw new Failure(404,"Donor not found");if(number(d.get("revision"))!=revision)throw new Failure(409,"Profile changed. Reload before uploading.");store.put(key,file.bytes);int changed=store.update("UPDATE donors SET photo_key=?,revision=revision+1,updated_at=? WHERE id=? AND revision=?",key,Store.now(),id,revision);if(changed==0){store.delete(key);throw new Failure(409,"Profile changed. Reload before uploading.");}store.delete((String)d.get("photo_key"));json(e,200,map("donor",publicDonor(donorById(id))));
     }
 }
+
 
 
 

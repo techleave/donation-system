@@ -31,11 +31,11 @@ final class TreeAdoptions {
         if(method.equals("GET")){
             if(p.containsKey("requestId")){String id=Validation.id(p.get("requestId"));var r=request(id,user);json(e,200,map("requestId",id,"quantity",quantity(r),"trees",app.store.all("SELECT tree_index AS treeIndex,url,label,revision,updated_at AS updatedAt FROM tree_adoptions WHERE request_id=? ORDER BY tree_index",id)));return;}
             var donor=app.own(user);if(donor==null)throw new Failure(403,"Donor profile required");var groups=new ArrayList<Object>();
-            for(var r:app.store.all("SELECT id,fields,status,submitted_at FROM reward_requests WHERE donor_id=? AND category='tree' AND status NOT IN ('cancelled','rejected') ORDER BY submitted_at DESC,id",donor.get("id"))){var rows=app.store.all("SELECT tree_index AS treeIndex,url,label,revision,updated_at AS updatedAt FROM tree_adoptions WHERE request_id=? ORDER BY tree_index",r.get("id"));groups.add(map("requestId",r.get("id"),"quantity",quantity(r),"submittedAt",r.get("submitted_at"),"status",r.get("status"),"trees",rows));}
+            for(var r:app.store.all("SELECT id,fields,status,submitted_at FROM reward_requests WHERE donor_id=? AND category='tree' AND status NOT IN ('cancelled','rejected','forfeited') ORDER BY submitted_at DESC,id",donor.get("id"))){var rows=app.store.all("SELECT tree_index AS treeIndex,url,label,revision,updated_at AS updatedAt FROM tree_adoptions WHERE request_id=? ORDER BY tree_index",r.get("id"));groups.add(map("requestId",r.get("id"),"quantity",quantity(r),"submittedAt",r.get("submitted_at"),"status",r.get("status"),"trees",rows));}
             json(e,200,map("adoptions",groups));return;
         }
         if(!method.equals("POST"))throw new Failure(405,"Method not allowed");app.admin(e,user,true);var b=bodyJson(e);String id=Validation.id(b.get("requestId"));var r=request(id,user);
-        if(List.of("cancelled","rejected").contains(r.get("status")))throw new Failure(409,"Request is inactive");
+        if(List.of("cancelled","rejected","forfeited").contains(r.get("status")))throw new Failure(409,"Request is inactive");
         int index=Validation.integer(b.get("treeIndex"),1,(int)quantity(r),"Choose a tree in this request"),revision=Validation.integer(b.get("revision"),0,Integer.MAX_VALUE-1,"Invalid revision");
         String url=string(b,"url").trim(),label=string(b,"label").trim();Validation.require(label.length()<=120,"Tree label is too long");
         try{var u=new URI(url);Validation.require(url.length()<=2048&&"https".equalsIgnoreCase(u.getScheme())&&u.getHost()!=null&&u.getRawUserInfo()==null,"Use a complete HTTPS tree link");svg(url);}catch(Failure f){throw f;}catch(Exception ex){throw new Failure(400,"Invalid tree link or link is too long for a QR code");}
@@ -49,3 +49,4 @@ final class TreeAdoptions {
         return "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 "+size+" "+size+"\" shape-rendering=\"crispEdges\"><rect width=\"100%\" height=\"100%\" fill=\"white\"/><path d=\""+path+"\" fill=\"#163e2c\"/></svg>";
     }
 }
+

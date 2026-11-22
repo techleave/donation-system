@@ -12,6 +12,7 @@ final class Donations {
     final Store store;
     Donations(Store store)throws Exception{
         this.store=store;
+        store.exec("CREATE TABLE IF NOT EXISTS reward_forfeitures (id TEXT PRIMARY KEY,donor_id TEXT NOT NULL REFERENCES donors(id) ON DELETE CASCADE,category TEXT NOT NULL,quantity INTEGER NOT NULL CHECK(quantity>0),created_at TEXT NOT NULL)");
         if(store.one("SELECT name FROM runtime_migrations WHERE name='donation-entitlements-v1'")!=null)return;
         // Keep a recoverable copy before introducing the new accounting tables.
         var backup=store.root.resolve("before-donation-entitlements-"+UUID.randomUUID()+".sqlite");
@@ -46,16 +47,18 @@ final class Donations {
     }
     Map<String,Object> summary(Object id)throws Exception{
         long total=total(id);var donor=store.one("SELECT points FROM donors WHERE id=?",id);long awarded=donor==null?0:Math.max(0,((Number)donor.get("points")).longValue());long points=total/500000*1000+awarded,units=points/1000;var used=new HashMap<String,Long>();
-        for(var r:store.all("SELECT category,fields FROM reward_requests WHERE donor_id=? AND status NOT IN ('cancelled','rejected')",id)){
+        for(var r:store.all("SELECT category,fields FROM reward_requests WHERE donor_id=? AND status NOT IN ('cancelled','rejected','forfeited')",id)){
             String category=(String)r.get("category");var fields=object(JSON.readValue((String)r.get("fields"),Map.class));
             used.merge(category,quantity(fields,category),Long::sum);
         }
         var rewards=new LinkedHashMap<String,Object>();
         var categoryIds=new LinkedHashSet<String>(Validation.CATEGORIES);var content=store.one("SELECT published FROM site_content WHERE id=1");if(content!=null){var config=object(JSON.readValue((String)content.get("published"),Map.class));for(Object raw:list(config.get("categories"))){String category=string(object(raw),"id");if(Validation.validCategory(category))categoryIds.add(category);}}categoryIds.addAll(used.keySet());
+        for(var f:store.all("SELECT category,SUM(quantity) AS quantity FROM reward_forfeitures WHERE donor_id=? GROUP BY category",id))used.merge((String)f.get("category"),((Number)f.get("quantity")).longValue(),Long::sum);
         for(String category:categoryIds){long earned=category.equals("ticket")?(points>=10000?2:points>=1000?1:0):units;
-            long redeemed=used.getOrDefault(category,0L);rewards.put(category,map("earned",earned,"used",redeemed,"remaining",Math.max(0,earned-redeemed)));}
+            if(guidedCategory(category))earned=total/500000;long redeemed=used.getOrDefault(category,0L);rewards.put(category,map("earned",earned,"used",redeemed,"remaining",Math.max(0,earned-redeemed)));}
         return map("cumulativeDonation",BigDecimal.valueOf(total,2),"cumulativePoints",points,"awardedPoints",awarded,"entitlements",rewards);
     }
+    static boolean guidedCategory(String category){return List.of("tree","airport","card","gift66e7d1f75cda4ddd93ef092ecfa59178").contains(category);}
     void reserve(Object donorId,String category,int quantity)throws Exception{
         var summary=summary(donorId);var reward=object(object(summary.get("entitlements")).get(category));
         if(((Number)reward.get("remaining")).longValue()<quantity)throw new Failure(409,"此項權益剩餘次數不足 / No remaining allowance for this reward. Reload your profile.");
@@ -88,5 +91,6 @@ final class Donations {
         return rows;
     }
 }
+
 
 
